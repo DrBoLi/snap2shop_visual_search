@@ -1,5 +1,14 @@
-FROM node:18-alpine
-RUN apk add --no-cache openssl
+FROM node:18-slim
+
+# Install system dependencies needed for Sharp, ONNX Runtime, and image processing
+RUN apt-get update && apt-get install -y \
+    libc6 \
+    libstdc++6 \
+    python3 \
+    make \
+    g++ \
+    libvips-dev \
+ && rm -rf /var/lib/apt/lists/*
 
 EXPOSE 3000
 
@@ -10,8 +19,6 @@ ENV NODE_ENV=production
 COPY package.json package-lock.json* ./
 
 RUN npm ci --omit=dev && npm cache clean --force
-# Remove CLI packages since we don't need them in production by default.
-# Remove this line if you want to run CLI commands in your container.
 RUN npm remove @shopify/cli
 
 COPY . .
@@ -19,3 +26,4 @@ COPY . .
 RUN npm run build
 
 CMD ["npm", "run", "docker-start"]
+
