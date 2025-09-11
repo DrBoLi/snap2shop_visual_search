@@ -30,3 +30,65 @@ model Session {
   collaborator  Boolean?  @default(false)
   emailVerified Boolean?  @default(false)
 }
+
+model Product {
+  id                String         @id @default(cuid())
+  shopifyProductId  String
+  shop              String
+  title             String
+  description       String?
+  tags              String?
+  price             String?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  images            ProductImage[]
+
+  @@unique([shopifyProductId, shop])
+  @@index([shop])
+}
+
+model ProductImage {
+  id        String  @id @default(cuid())
+  productId String
+  shop      String
+  imageUrl  String
+  imagePath String?
+  altText   String?
+  width     Int?
+  height    Int?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  embedding ProductEmbedding?
+
+  @@index([productId])
+  @@index([shop])
+}
+
+model SyncStatus {
+  id          String    @id @default(cuid())
+  shop        String    @unique
+  status      String    @default("idle") // idle, syncing, completed, error
+  progress    Int       @default(0)
+  totalItems  Int       @default(0)
+  lastSync    DateTime?
+  errorMessage String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([shop])
+}
+
+model ProductEmbedding {
+  id        String  @id @default(cuid())
+  imageId   String  @unique
+  shop      String
+  embedding String  // JSON string of the embedding vector
+  modelName String  @default("clip-vit-base-patch32")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  image     ProductImage @relation(fields: [imageId], references: [id], onDelete: Cascade)
+
+  @@index([shop])
+  @@index([imageId])
+}

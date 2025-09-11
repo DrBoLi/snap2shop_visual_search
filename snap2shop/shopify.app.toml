@@ -2,12 +2,13 @@
 
 client_id = "1562783b62c5bdcafe7e2e579bedbf01"
 name = "snap2shop"
-application_url = "https://example.com/"
+application_url = "https://complement-documentation-dicke-programmers.trycloudflare.com"
 embedded = true
 handle = "snap2shop-1"
 
 [build]
 include_config_on_deploy = true
+automatically_update_urls_on_dev = true
 
 [webhooks]
 api_version = "2025-07"
@@ -25,7 +26,7 @@ api_version = "2025-07"
 scopes = "write_products"
 
 [auth]
-redirect_urls = [ "https://example.com/api/auth" ]
+redirect_urls = ["https://complement-documentation-dicke-programmers.trycloudflare.com/auth/callback", "https://complement-documentation-dicke-programmers.trycloudflare.com/auth/shopify/callback", "https://complement-documentation-dicke-programmers.trycloudflare.com/api/auth/callback"]
 
 [pos]
 embedded = false
