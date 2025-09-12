@@ -75,7 +75,7 @@ class VectorDatabaseService {
     }
   }
 
-  async searchSimilar(queryEmbedding, shop, topK = 10, threshold = 0.5) {
+  async searchSimilar(shop, queryEmbedding, topK = 10, threshold = 0.0) {
     try {
       // Get all embeddings for the shop
       const allEmbeddings = await this.getAllEmbeddingsForShop(shop);
@@ -84,9 +84,55 @@ class VectorDatabaseService {
         return [];
       }
 
+      // Filter embeddings to ensure consistent dimensions
+      const filteredEmbeddings = allEmbeddings.filter(item => {
+        if (!item.embedding || item.embedding.length !== queryEmbedding.length) {
+          console.warn(`⚠️ Skipping embedding with mismatched dimensions: ${item.embedding?.length} vs ${queryEmbedding.length} (model: ${item.modelName})`);
+          return false;
+        }
+        return true;
+      });
+
+      console.log(`🔍 Filtered embeddings: ${filteredEmbeddings.length}/${allEmbeddings.length} (dimension: ${queryEmbedding.length})`);
+      
+      if (filteredEmbeddings.length === 0) {
+        console.warn('⚠️ No embeddings with matching dimensions found!');
+        return [];
+      }
+
       // Calculate similarities
-      const similarities = allEmbeddings.map(item => {
+      const similarities = filteredEmbeddings.map((item, index) => {
+        if (index === 0) {
+          console.log('🔍 First stored embedding dimensions:', item.embedding.length);
+          console.log('🔍 Query embedding dimensions:', queryEmbedding.length);
+          console.log('🔍 First stored embedding model:', item.modelName);
+          console.log('🔍 Similarity threshold:', threshold);
+          console.log('🔍 Total embeddings to compare:', filteredEmbeddings.length);
+          
+          // Log query embedding details
+          console.log(`🔍 Query embedding first 10 values: [${queryEmbedding.slice(0, 10).map(v => v.toFixed(4)).join(', ')}]`);
+          console.log(`🔍 Query embedding range: min=${Math.min(...queryEmbedding).toFixed(4)}, max=${Math.max(...queryEmbedding).toFixed(4)}`);
+        }
+        
         const similarity = this.calculateCosineSimilarity(queryEmbedding, item.embedding);
+        
+        // Log top 5 similarity scores for debugging
+        if (index < 5) {
+          console.log(`🔍 Item ${index + 1}: similarity=${similarity != null ? similarity.toFixed(4) : 'null'}, product="${item.image?.product?.title?.substring(0, 30)}"`);
+          
+          // Log first few values of stored embedding for comparison
+          if (index < 3) {
+            console.log(`🔍   Stored embedding first 10 values: [${item.embedding.slice(0, 10).map(v => v != null ? v.toFixed(4) : 'null').join(', ')}]`);
+            const minVal = Math.min(...item.embedding);
+            const maxVal = Math.max(...item.embedding);
+            console.log(`🔍   Stored embedding range: min=${minVal != null ? minVal.toFixed(4) : 'null'}, max=${maxVal != null ? maxVal.toFixed(4) : 'null'}`);
+            
+            // Validate embedding model consistency
+            if (item.modelName && item.modelName.includes('pseudo')) {
+              console.warn(`⚠️  WARNING: Found pseudo-embedding in database! Model: ${item.modelName}`);
+            }
+          }
+        }
         
         return {
           imageId: item.imageId,
@@ -97,10 +143,31 @@ class VectorDatabaseService {
         };
       });
 
+      // Log similarity distribution for monitoring
+      const similaritiesArray = similarities.map(s => s.similarity).filter(s => s != null);
+      if (similaritiesArray.length > 0) {
+        const avgSimilarity = similaritiesArray.reduce((a, b) => a + b, 0) / similaritiesArray.length;
+        const maxSimilarity = Math.max(...similaritiesArray);
+        const minSimilarity = Math.min(...similaritiesArray);
+        
+        console.log(`🔍 Similarity distribution: avg=${avgSimilarity.toFixed(4)}, min=${minSimilarity.toFixed(4)}, max=${maxSimilarity.toFixed(4)}`);
+        console.log(`🔍 Similarities above 0.1: ${similaritiesArray.filter(s => s > 0.1).length}`);
+        console.log(`🔍 Similarities above 0.2: ${similaritiesArray.filter(s => s > 0.2).length}`);
+        console.log(`🔍 Similarities above 0.3: ${similaritiesArray.filter(s => s > 0.3).length}`);
+      } else {
+        console.log('🔍 No valid similarities calculated!');
+      }
+
       // Filter by threshold and sort by similarity
       const filtered = similarities
-        .filter(item => item.similarity >= threshold)
+        .filter(item => item.similarity != null && item.similarity >= threshold)
         .sort((a, b) => b.similarity - a.similarity);
+
+      console.log(`🔍 After filtering (threshold=${threshold}): ${filtered.length}/${similarities.length} items`);
+      console.log('🔍 Top 3 filtered similarities:');
+      filtered.slice(0, 3).forEach((item, i) => {
+        console.log(`   ${i + 1}. ${item.similarity != null ? item.similarity.toFixed(4) : 'null'} - ${item.product?.title?.substring(0, 30)}`);
+      });
 
       return filtered.slice(0, topK);
     } catch (error) {
@@ -110,8 +177,9 @@ class VectorDatabaseService {
   }
 
   calculateCosineSimilarity(vec1, vec2) {
-    if (vec1.length !== vec2.length) {
-      throw new Error('Vectors must have the same dimensions');
+    if (!vec1 || !vec2 || vec1.length !== vec2.length) {
+      console.warn('⚠️ Invalid vectors for similarity calculation', { vec1Length: vec1?.length, vec2Length: vec2?.length });
+      return 0; // Return 0 instead of throwing error
     }
 
     let dotProduct = 0;
@@ -119,19 +187,23 @@ class VectorDatabaseService {
     let norm2 = 0;
 
     for (let i = 0; i < vec1.length; i++) {
-      dotProduct += vec1[i] * vec2[i];
-      norm1 += vec1[i] * vec1[i];
-      norm2 += vec2[i] * vec2[i];
+      const v1 = vec1[i] || 0; // Handle null/undefined values
+      const v2 = vec2[i] || 0;
+      
+      dotProduct += v1 * v2;
+      norm1 += v1 * v1;
+      norm2 += v2 * v2;
     }
 
     norm1 = Math.sqrt(norm1);
     norm2 = Math.sqrt(norm2);
 
-    if (norm1 === 0 || norm2 === 0) {
+    if (norm1 === 0 || norm2 === 0 || !isFinite(norm1) || !isFinite(norm2)) {
       return 0;
     }
 
-    return dotProduct / (norm1 * norm2);
+    const similarity = dotProduct / (norm1 * norm2);
+    return isFinite(similarity) ? similarity : 0;
   }
 
   async deleteEmbeddingsForShop(shop) {

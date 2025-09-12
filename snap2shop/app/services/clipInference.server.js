@@ -1,186 +1,278 @@
-import { pipeline, env } from '@xenova/transformers';
+// CLIPInferenceService.js
+import { pipeline, RawImage, env } from '@xenova/transformers';
 import sharp from 'sharp';
 import axios from 'axios';
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import crypto from 'node:crypto';
 
-// Configure transformers to use local models
 env.allowLocalModels = false;
+// Optional: tune WASM threads if using wasm backend
 env.backends.onnx.wasm.numThreads = 1;
 
 class CLIPInferenceService {
   constructor() {
     this.model = null;
-    this.processor = null;
     this.modelLoading = false;
-    this.modelName = 'Xenova/clip-vit-base-patch32';
+    this.modelName = 'Xenova/clip-vit-base-patch16';
   }
 
   async initializeModel() {
-    if (this.model) {
-      return;
-    }
+    if (this.model) return;
 
     if (this.modelLoading) {
-      // Wait for model to finish loading
       while (this.modelLoading) {
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise((r) => setTimeout(r, 100));
       }
       return;
     }
 
     this.modelLoading = true;
-    
     try {
-      console.log('Loading image embedding model... This may take a few minutes on first run.');
-      
-      // Use a vision model that's supported by Transformers.js for image feature extraction
-      this.model = await pipeline(
-        'image-feature-extraction',
-        'Xenova/vit-base-patch16-224-in21k',  // Vision Transformer model
-        {
-          device: 'cpu',
-          dtype: 'fp32',
-        }
-      );
-
-      console.log('Vision model loaded successfully!');
-      this.modelName = 'Xenova/vit-base-patch16-224-in21k';
-    } catch (error) {
-      console.error('Failed to load vision model:', error);
+      console.log(`🔄 Loading CLIP model: ${this.modelName}`);
+      // Use CLIP for feature extraction (vision encoder)
+      this.model = await pipeline('image-feature-extraction', this.modelName);
+      console.log('✅ CLIP model loaded successfully!');
+    } catch (err) {
+      console.error('❌ Failed to load CLIP model:', err);
       this.model = null;
-      throw error;
+      throw err;
     } finally {
       this.modelLoading = false;
     }
   }
 
-  async downloadAndProcessImage(imageUrl) {
+  // -- Utilities -------------------------------------------------------------
+
+  async _rawImageFromHttp(url) {
+    // Let RawImage fetch & decode
+    return RawImage.fromURL(url);
+  }
+
+  async _rawImageFromDataUrl(dataUrl) {
+    // data:image/<type>;base64,<payload>
+    const match = /^data:(image\/[a-zA-Z0-9.+-]+);base64,(.*)$/.exec(dataUrl);
+    if (!match) throw new Error('Invalid data URL');
+
+    const base64 = match[2];
+    const buf = Buffer.from(base64, 'base64');
+
+    // Normalize to RGB JPEG to ensure compatibility
+    const jpegBuf = await sharp(buf)
+      .removeAlpha()
+      .jpeg({ quality: 95 })
+      .toBuffer();
+
+    const tmpPath = path.join(os.tmpdir(), `clip-${crypto.randomUUID()}.jpg`);
+    await fs.writeFile(tmpPath, jpegBuf);
+
     try {
-      console.log(`Downloading image from: ${imageUrl}`);
-      
-      const response = await axios.get(imageUrl, {
-        responseType: 'arraybuffer',
-        timeout: 30000,
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (compatible; Visual-Search-Bot/1.0)',
-        }
-      });
-
-      // Process image with Sharp
-      const processedImage = await sharp(response.data)
-        .resize(224, 224, { fit: 'cover' })
-        .removeAlpha()
-        .jpeg({ quality: 90 })
-        .toBuffer();
-
-      return processedImage;
-    } catch (error) {
-      console.error('Error downloading/processing image:', error.message);
-      throw new Error(`Failed to process image: ${error.message}`);
+      const raw = await RawImage.read(tmpPath);
+      return raw;
+    } finally {
+      // best-effort cleanup
+      fs.unlink(tmpPath).catch(() => {});
     }
   }
 
+  // Optional: If you still want a Sharp-based pre-resize (not required for CLIP)
+  async _rawImageFromHttpWithResize(url, size = 224) {
+    const { data } = await axios.get(url, {
+      responseType: 'arraybuffer',
+      timeout: 30000,
+      headers: { 'User-Agent': 'Visual-Search/1.0' },
+    });
+
+    const jpegBuf = await sharp(data)
+      .resize(size, size, { fit: 'cover' })
+      .removeAlpha()
+      .jpeg({ quality: 95 })
+      .toBuffer();
+
+    const tmpPath = path.join(os.tmpdir(), `clip-${crypto.randomUUID()}.jpg`);
+    await fs.writeFile(tmpPath, jpegBuf);
+
+    try {
+      return await RawImage.read(tmpPath);
+    } finally {
+      fs.unlink(tmpPath).catch(() => {});
+    }
+  }
+
+  // -- Public API ------------------------------------------------------------
+
   async generateEmbedding(imageUrl) {
     try {
-      // Initialize model if not already done
       await this.initializeModel();
+      if (!this.model) throw new Error('CLIP model not available');
 
-      if (!this.model) {
-        console.log('CLIP model not available, using pseudo-embedding...');
-        return this.generatePseudoEmbedding(imageUrl);
+      let rawImage;
+      if (imageUrl.startsWith('data:image/')) {
+        // ✅ base64 data URL path
+        rawImage = await this._rawImageFromDataUrl(imageUrl);
+      } else if (imageUrl.startsWith('http')) {
+        // ✅ http(s) URL path
+        rawImage = await this._rawImageFromHttp(imageUrl);
+        // If you prefer standardized size, swap to _rawImageFromHttpWithResize(imageUrl)
+      } else {
+        throw new Error('Unsupported image source');
       }
 
-      // Download and process image
-      const imageBuffer = await this.downloadAndProcessImage(imageUrl);
-      
-      // Generate embedding using Vision Transformer
-      console.log(`Generating CLIP embedding for: ${imageUrl.substring(0, 50)}...`);
-      
-      // For Vision Transformers, we need to pass the raw image URL, not the processed buffer
-      const embedding = await this.model(imageUrl);
-      
-      // The embedding is typically in the format: { data: Float32Array }
-      const embeddingArray = Array.from(embedding.data || embedding);
-      
-      console.log(`Generated CLIP embedding (${embeddingArray.length} dimensions)`);
-      
-      return {
-        embedding: embeddingArray,
-        description: "CLIP visual embedding",
-        modelName: this.modelName
-      };
+      // Run CLIP feature extraction with pooling + normalization
+      const output = await this.model(rawImage, {
+        pooling: 'mean',
+        normalize: true,
+      });
 
-    } catch (error) {
-      console.error('Error generating CLIP embedding:', error.message);
-      
-      // Fallback to pseudo-embedding on any error
-      console.log('Falling back to pseudo-embedding...');
+      const vector = Array.from(output.data || output);
+      if (!vector.length) throw new Error('Empty embedding');
+
+      console.log(`✅ Generated CLIP embedding (${vector.length} dims)`);
+      console.log(`   First 8: [${vector.slice(0, 8).map(v => v.toFixed(4)).join(', ')}]`);
+
+      return {
+        embedding: vector,
+        description: 'Real CLIP embedding (vision)',
+        modelName: this.modelName,
+      };
+    } catch (err) {
+      console.error('❌ Error generating CLIP embedding:', err.message);
+      console.warn('⚠️ Falling back to pseudo-embedding');
       return this.generatePseudoEmbedding(imageUrl);
     }
   }
 
-  generatePseudoEmbedding(imageUrl) {
-    // Generate a deterministic pseudo-embedding based on URL
-    const hash = this.simpleHash(imageUrl);
-    const embedding = [];
-    
-    // Create a 512-dimensional vector (same as CLIP-base)
-    for (let i = 0; i < 512; i++) {
-      embedding.push((Math.sin(hash + i) + Math.cos(hash * 2 + i)) / 2);
-    }
+   // Keep pseudo-embedding for development/testing only
+   async generatePseudoEmbedding(imageUrl) {
+     console.warn('⚠️  Using pseudo-embedding - this should not happen in production!');
+     
+     // Always try to use enhanced pseudo-embeddings with actual image processing
+     try {
+       let imageBuffer;
+       
+       if (imageUrl.startsWith('data:') || imageUrl.startsWith('http')) {
+         // Extract basic image features for better similarity
+         const response = await axios.get(imageUrl, {
+           responseType: 'arraybuffer',
+           timeout: 30000,
+           headers: {
+             'User-Agent': 'Mozilla/5.0 (compatible; Visual-Search-Bot/1.0)',
+           }
+         });
 
-    return {
-      embedding,
-      description: "Pseudo-embedding for development",
-      modelName: "pseudo-hash-dev"
-    };
-  }
+         // Process image with Sharp - preserve aspect ratio
+         imageBuffer = await sharp(response.data)
+           .resize(224, 224, { 
+             fit: 'inside', // Preserve aspect ratio, don't crop
+             withoutEnlargement: true // Don't enlarge small images
+           })
+           .extend({
+             top: 0,
+             bottom: 0,
+             left: 0,
+             right: 0,
+             background: { r: 255, g: 255, b: 255, alpha: 1 } // White background
+           })
+           .removeAlpha()
+           .jpeg({ quality: 90 })
+           .toBuffer();
+         
+         // Use Sharp to get basic image statistics
+         const { width, height, channels } = await sharp(imageBuffer).metadata();
+         
+         console.log(`🔧 Creating enhanced pseudo-embedding with image features: ${width}x${height}, ${channels} channels`);
+         
+         // Create an embedding based on actual image properties
+         const embedding = [];
+         const baseHash = this.simpleHash(imageUrl.substring(0, 100)); // Use part of URL for variation
+         
+         for (let i = 0; i < 512; i++) {
+           // Mix in actual image properties for better pseudo-similarity
+           const feature = (
+             Math.sin(baseHash + i * (width || 224)) + 
+             Math.cos(baseHash * 2 + i * (height || 224)) +
+             Math.sin(i * (channels || 3)) +
+             Math.cos(i * Math.sqrt(width * height || 50176)) // Include area
+           ) / 4;
+           embedding.push(feature);
+         }
 
-  simpleHash(str) {
-    let hash = 0;
-    for (let i = 0; i < str.length; i++) {
-      const char = str.charCodeAt(i);
-      hash = ((hash << 5) - hash) + char;
-      hash = hash & hash;
-    }
-    return hash;
-  }
+         console.log(`🔍 Pseudo-embedding first 10 values: [${embedding.slice(0, 10).map(v => v.toFixed(4)).join(', ')}]`);
+         console.log(`🔍 Pseudo-embedding range: min=${Math.min(...embedding).toFixed(4)}, max=${Math.max(...embedding).toFixed(4)}`);
+         
+         return {
+           embedding,
+           description: "Enhanced pseudo-embedding with image features",
+           modelName: "pseudo-enhanced-dev"
+         };
+       }
+     } catch (error) {
+       console.warn('Could not process image for enhanced pseudo-embedding:', error.message);
+     }
+     
+     // Fallback to simple hash-based embedding
+     const hash = this.simpleHash(imageUrl);
+     const embedding = [];
+     
+     // Create a 512-dimensional vector (same as CLIP-base)
+     for (let i = 0; i < 512; i++) {
+       embedding.push((Math.sin(hash + i) + Math.cos(hash * 2 + i)) / 2);
+     }
 
-  calculateSimilarity(embedding1, embedding2) {
-    if (embedding1.length !== embedding2.length) {
-      throw new Error('Embeddings must have the same dimensions');
-    }
+     return {
+       embedding,
+       description: "Pseudo-embedding for development",
+       modelName: "pseudo-hash-dev"
+     };
+   }
 
-    let dotProduct = 0;
-    let norm1 = 0;
-    let norm2 = 0;
+   simpleHash(str) {
+     let hash = 0;
+     for (let i = 0; i < str.length; i++) {
+       const char = str.charCodeAt(i);
+       hash = ((hash << 5) - hash) + char;
+       hash = hash & hash;
+     }
+     return hash;
+   }
 
-    for (let i = 0; i < embedding1.length; i++) {
-      dotProduct += embedding1[i] * embedding2[i];
-      norm1 += embedding1[i] * embedding1[i];
-      norm2 += embedding2[i] * embedding2[i];
-    }
+   calculateSimilarity(embedding1, embedding2) {
+     if (embedding1.length !== embedding2.length) {
+       throw new Error('Embeddings must have the same dimensions');
+     }
 
-    norm1 = Math.sqrt(norm1);
-    norm2 = Math.sqrt(norm2);
+     let dotProduct = 0;
+     let norm1 = 0;
+     let norm2 = 0;
 
-    if (norm1 === 0 || norm2 === 0) {
-      return 0;
-    }
+     for (let i = 0; i < embedding1.length; i++) {
+       dotProduct += embedding1[i] * embedding2[i];
+       norm1 += embedding1[i] * embedding1[i];
+       norm2 += embedding2[i] * embedding2[i];
+     }
 
-    return dotProduct / (norm1 * norm2);
-  }
+     norm1 = Math.sqrt(norm1);
+     norm2 = Math.sqrt(norm2);
 
-  findSimilarEmbeddings(queryEmbedding, candidateEmbeddings, topK = 10) {
-    const similarities = candidateEmbeddings.map((candidate, index) => ({
-      index,
-      imageId: candidate.imageId,
-      productId: candidate.productId,
-      similarity: this.calculateSimilarity(queryEmbedding, candidate.embedding),
-    }));
+     if (norm1 === 0 || norm2 === 0) {
+       return 0;
+     }
 
-    similarities.sort((a, b) => b.similarity - a.similarity);
-    return similarities.slice(0, topK);
-  }
+     return dotProduct / (norm1 * norm2);
+   }
+
+   findSimilarEmbeddings(queryEmbedding, candidateEmbeddings, topK = 10) {
+     const similarities = candidateEmbeddings.map((candidate, index) => ({
+       index,
+       imageId: candidate.imageId,
+       productId: candidate.productId,
+       similarity: this.calculateSimilarity(queryEmbedding, candidate.embedding),
+     }));
+
+     similarities.sort((a, b) => b.similarity - a.similarity);
+     return similarities.slice(0, topK);
+   }
 
   async preloadModel() {
     try {

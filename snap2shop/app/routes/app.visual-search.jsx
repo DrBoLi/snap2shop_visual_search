@@ -151,6 +151,26 @@ export default function VisualSearch() {
             <Card>
               <BlockStack gap="400">
                 <Text as="h2" variant="headingMd">
+                  Storefront Integration
+                </Text>
+                <Text as="p" variant="bodyMd">
+                  Install the visual search widget on your storefront to let customers search for products using images.
+                </Text>
+                
+                <InlineStack gap="300">
+                  <Button
+                    url="/app/theme-extension"
+                    variant="secondary"
+                  >
+                    View Theme Extension
+                  </Button>
+                </InlineStack>
+              </BlockStack>
+            </Card>
+
+            <Card>
+              <BlockStack gap="400">
+                <Text as="h2" variant="headingMd">
                   Data Management
                 </Text>
                 <Text as="p" variant="bodyMd">

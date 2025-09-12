@@ -1,0 +1,17 @@
+{
+  "visual_search": {
+    "title": "Find Similar Products",
+    "subtitle": "Upload an image to find similar products in our store",
+    "upload_text": "Drop an image here or click to browse",
+    "upload_hint": "Supports JPG, PNG, WebP up to 10MB",
+    "search_button": "Find Similar Products",
+    "searching": "Searching...",
+    "results_title": "Similar Products",
+    "clear_results": "Clear Results",
+    "no_results": "No similar products found. Try a different image.",
+    "error_generic": "Sorry, something went wrong. Please try again.",
+    "error_file_type": "Please select a valid image file (JPG, PNG, WebP)",
+    "error_file_size": "File size must be less than {size}MB",
+    "similarity_match": "{percentage}% match"
+  }
+}

@@ -1,0 +1,120 @@
+{{ 'visual-search.css' | asset_url | stylesheet_tag }}
+{{ 'visual-search.js' | asset_url | script_tag }}
+
+<div class="visual-search-widget" data-block-id="{{ block.id }}">
+  <div class="visual-search-header">
+    <h3 class="visual-search-title">{{ block.settings.title | default: 'Find Similar Products' }}</h3>
+    <p class="visual-search-subtitle">{{ block.settings.subtitle | default: 'Upload an image to find similar products in our store' }}</p>
+  </div>
+
+  <div class="visual-search-upload">
+    <div class="upload-area" id="upload-area-{{ block.id }}">
+      <div class="upload-placeholder">
+        <svg class="upload-icon" width="48" height="48" viewBox="0 0 24 24" fill="none">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" stroke="currentColor" stroke-width="2"/>
+          <polyline points="17,8 12,3 7,8" stroke="currentColor" stroke-width="2"/>
+          <line x1="12" y1="3" x2="12" y2="15" stroke="currentColor" stroke-width="2"/>
+        </svg>
+        <p class="upload-text">Drop an image here or click to browse</p>
+        <p class="upload-hint">Supports JPG, PNG, WebP up to 10MB</p>
+      </div>
+      
+      <input type="file" id="image-input-{{ block.id }}" class="image-input" accept="image/*" hidden>
+      
+      <div class="image-preview" id="image-preview-{{ block.id }}" style="display: none;">
+        <img class="preview-image" id="preview-image-{{ block.id }}" alt="Uploaded image">
+        <button class="remove-image" id="remove-image-{{ block.id }}" type="button">&times;</button>
+      </div>
+    </div>
+
+    <button class="search-button" id="search-button-{{ block.id }}" disabled>
+      <span class="search-text">Find Similar Products</span>
+      <span class="loading-spinner" style="display: none;">
+        <svg width="20" height="20" viewBox="0 0 24 24">
+          <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2" fill="none" opacity="0.25"/>
+          <path d="M4 12a8 8 0 0 1 8-8" stroke="currentColor" stroke-width="2" fill="none">
+            <animateTransform attributeName="transform" type="rotate" dur="1s" repeatCount="indefinite" values="0 12 12;360 12 12"/>
+          </path>
+        </svg>
+      </span>
+    </button>
+  </div>
+
+  <div class="visual-search-results" id="search-results-{{ block.id }}" style="display: none;">
+    <div class="results-header">
+      <h4 class="results-title">Similar Products</h4>
+      <button class="clear-results" id="clear-results-{{ block.id }}">Clear Results</button>
+    </div>
+    <div class="results-grid" id="results-grid-{{ block.id }}">
+      <!-- Results will be populated by JavaScript -->
+    </div>
+  </div>
+
+  <div class="error-message" id="error-message-{{ block.id }}" style="display: none;">
+    <p class="error-text">Sorry, something went wrong. Please try again.</p>
+  </div>
+</div>
+
+<script>
+  (function() {
+    const blockId = '{{ block.id }}';
+    const appUrl = '{{ shop.permanent_domain }}';
+    
+    // Initialize visual search widget
+    window.initVisualSearchWidget(blockId, {
+      appUrl: appUrl,
+      maxFileSize: {{ block.settings.max_file_size | default: 10485760 }}, // 10MB
+      maxResults: {{ block.settings.max_results | default: 12 }}
+    });
+  })();
+</script>
+
+{% schema %}
+{
+  "name": "Visual Search",
+  "target": "section",
+  "settings": [
+    {
+      "type": "text",
+      "id": "title",
+      "label": "Widget Title",
+      "default": "Find Similar Products"
+    },
+    {
+      "type": "text",
+      "id": "subtitle", 
+      "label": "Widget Subtitle",
+      "default": "Upload an image to find similar products in our store"
+    },
+    {
+      "type": "range",
+      "id": "max_results",
+      "label": "Maximum Results",
+      "min": 4,
+      "max": 24,
+      "step": 4,
+      "default": 12
+    },
+    {
+      "type": "select",
+      "id": "max_file_size",
+      "label": "Maximum File Size",
+      "options": [
+        {
+          "value": "5242880",
+          "label": "5MB"
+        },
+        {
+          "value": "10485760", 
+          "label": "10MB"
+        },
+        {
+          "value": "20971520",
+          "label": "20MB"
+        }
+      ],
+      "default": "10485760"
+    }
+  ]
+}
+{% endschema %}

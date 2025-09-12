@@ -1,0 +1,6 @@
+name = "Visual Search Widget"
+type = "theme_app_extension"
+
+[build]
+command = ""
+watch = ["blocks/**/*", "assets/**/*"]
