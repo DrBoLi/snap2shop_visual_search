@@ -122,8 +122,8 @@ window.initVisualSearchWidget = function(blockId, config) {
 
       let response;
       try {
-        // Use the current tunnel URL
-        const apiUrl = 'https://snap2shop-visual-search.onrender.com/apps/proxy/api/search-image';
+        // Use relative URL for app proxy
+        const apiUrl = '/apps/proxy/api/search-image';
         console.log('Using relative API URL:', apiUrl);
         
         response = await fetch(apiUrl, {
