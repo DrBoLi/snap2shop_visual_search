@@ -123,7 +123,7 @@ window.initVisualSearchWidget = function(blockId, config) {
       let response;
       try {
         // Use relative URL for app proxy
-        const apiUrl = '/apps/proxy/api/search-image';
+        const apiUrl = '/api/search-image';
         console.log('Using relative API URL:', apiUrl);
         
         response = await fetch(apiUrl, {
