@@ -2,7 +2,7 @@
 
 client_id = "1562783b62c5bdcafe7e2e579bedbf01"
 name = "snap2shop"
-application_url = "https://complement-documentation-dicke-programmers.trycloudflare.com"
+application_url = "https://bold-saying-appreciation-databases.trycloudflare.com"
 embedded = true
 handle = "snap2shop-1"
 
@@ -26,7 +26,7 @@ api_version = "2025-07"
 scopes = "write_products"
 
 [auth]
-redirect_urls = ["https://complement-documentation-dicke-programmers.trycloudflare.com/auth/callback", "https://complement-documentation-dicke-programmers.trycloudflare.com/auth/shopify/callback", "https://complement-documentation-dicke-programmers.trycloudflare.com/api/auth/callback"]
+redirect_urls = ["https://bold-saying-appreciation-databases.trycloudflare.com/auth/callback", "https://bold-saying-appreciation-databases.trycloudflare.com/auth/shopify/callback", "https://bold-saying-appreciation-databases.trycloudflare.com/api/auth/callback"]
 
 [pos]
 embedded = false
