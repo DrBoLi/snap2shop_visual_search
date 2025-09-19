@@ -262,7 +262,7 @@
       
       cameraButton.style.cssText = `
         position: absolute;
-        right: 12px;
+        right: 45px;
         top: 50%;
         transform: translateY(-50%);
         z-index: 1000;
@@ -305,7 +305,7 @@
       
       cameraButton.style.cssText = `
         position: absolute;
-        right: 45px;
+        right: 75px;
         top: 50%;
         transform: translateY(-50%);
         z-index: 10;
