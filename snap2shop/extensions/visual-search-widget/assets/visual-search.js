@@ -116,14 +116,14 @@ window.initVisualSearchWidget = function(blockId, config) {
       console.log('Shopify object:', window.Shopify);
       formData.append('shop', shopDomain);
 
-      console.log('Making request to:', '/apps/api/search-image');
+      console.log('Making request to:', '/apps/proxy/api/search-image');
       console.log('Shop domain:', shopDomain);
       console.log('Max results:', config.maxResults);
 
       let response;
       try {
-        // Use relative URL for app proxy
-        const apiUrl = 'apps/proxy/api/search-image';
+        // Use relative URL for app proxy - FIXED: Added leading slash
+        const apiUrl = '/apps/proxy/api/search-image';
         console.log('Using relative API URL:', apiUrl);
         
         response = await fetch(apiUrl, {

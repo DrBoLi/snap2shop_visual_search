@@ -701,8 +701,11 @@
         formData.append('shop', this.config.shop || window.Shopify?.shop || window.location.hostname);
         
         // Use configured proxy URL (should be handled by Shopify App Proxy)
-        const apiUrl = this.config.proxyUrl || '/apps/proxy/api/search-image';
-        console.log('[Visual Search] Searching with URL:', apiUrl);
+        // For local testing without Shopify proxy, use direct route
+        const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+        const apiUrl = this.config.proxyUrl ||
+                      (isLocal ? '/apps/proxy/search-image' : '/apps/proxy/api/search-image');
+        console.log('[Visual Search] Searching with URL:', apiUrl, 'isLocal:', isLocal);
         
         const response = await fetch(apiUrl, {
           method: 'POST',
