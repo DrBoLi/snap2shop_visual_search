@@ -701,7 +701,7 @@
         formData.append('shop', this.config.shop || window.Shopify?.shop || window.location.hostname);
         
         // Use configured proxy URL (should be handled by Shopify App Proxy)
-        const apiUrl = this.config.proxyUrl || '/apps/proxy/search-image';
+        const apiUrl = this.config.proxyUrl || '/apps/proxy/api/search-image';
         console.log('[Visual Search] Searching with URL:', apiUrl);
         
         const response = await fetch(apiUrl, {
@@ -711,13 +711,6 @@
             'X-Requested-With': 'XMLHttpRequest'
           }
         });
-        
-        // Add content-type guard around response.json()
-        const contentType = response.headers.get('content-type');
-        if (!contentType || !contentType.includes('application/json')) {
-          const text = await response.text();
-          throw new Error(`Expected JSON response but got ${contentType}. Response: ${text.substring(0, 200)}...`);
-        }
         
         const data = await response.json();
         
@@ -1100,11 +1093,11 @@
         
         if (shouldRescan) {
           console.log('[Visual Search] DOM changes detected, rescanning for search inputs...');
-          // Bump observer timeout to catch dynamic inputs in search overlays
+          // Use a shorter delay to catch dynamic overlays faster
           setTimeout(() => {
             this.findSearchInputs();
             this.injectCameraIcons();
-          }, 200);
+          }, 50);
         }
       });
       
@@ -1132,11 +1125,11 @@
             (target.type === 'search' || target.type === 'text') &&
             this.looksLikeSearchInput(target)) {
           console.log('[Visual Search] Search input clicked, scheduling rescan...');
-          // Give the overlay time to appear - increased timeout for dynamic overlays
+          // Give the overlay time to appear
           setTimeout(() => {
             this.findSearchInputs();
             this.injectCameraIcons();
-          }, 250);
+          }, 100);
         }
       });
       
@@ -1150,7 +1143,7 @@
           setTimeout(() => {
             this.findSearchInputs();
             this.injectCameraIcons();
-          }, 300);
+          }, 150);
         }
       }, true); // Use capture phase to catch early
       
