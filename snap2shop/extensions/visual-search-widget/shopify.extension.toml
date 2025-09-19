@@ -1,4 +1,5 @@
 name = "Visual Search Widget"
+uid = "6c1d5e40-7ff7-958c-b8c8-d316df764137490abeff"
 type = "theme_app_extension"
 
 [build]

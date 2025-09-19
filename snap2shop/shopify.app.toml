@@ -2,7 +2,7 @@
 
 client_id = "1562783b62c5bdcafe7e2e579bedbf01"
 name = "snap2shop"
-application_url = "https://snap2shop-visual-search.onrender.com"
+application_url = "https://shipped-tier-labels-benjamin.trycloudflare.com"
 embedded = true
 handle = "snap2shop-1"
 
@@ -26,12 +26,12 @@ api_version = "2025-07"
 scopes = "write_products"
 
 [auth]
-redirect_urls = ["https://snap2shop-visual-search.onrender.com/auth/callback", "https://snap2shop-visual-search.onrender.com/auth/shopify/callback", "https://snap2shop-visual-search.onrender.com/api/auth/callback"]
+redirect_urls = ["https://shipped-tier-labels-benjamin.trycloudflare.com/auth/callback", "https://shipped-tier-labels-benjamin.trycloudflare.com/auth/shopify/callback", "https://shipped-tier-labels-benjamin.trycloudflare.com/api/auth/callback"]
 
 [pos]
 embedded = false
 
 [app_proxy]
-url = "https://snap2shop-visual-search.onrender.com/apps/proxy"
+url = "https://shipped-tier-labels-benjamin.trycloudflare.com/apps/proxy"
 subpath = "api"
 prefix = "apps"

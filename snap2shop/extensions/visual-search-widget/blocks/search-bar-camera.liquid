@@ -1,0 +1,136 @@
+{{ 'visual-search-modal.css' | asset_url | stylesheet_tag }}
+{{ 'error-handler.js' | asset_url | script_tag }}
+{{ 'image-processor.js' | asset_url | script_tag }}
+{{ 'camera-capture.js' | asset_url | script_tag }}
+{{ 'search-bar-integration.js' | asset_url | script_tag }}
+
+{% if block.settings.debug_mode %}
+{{ 'debug-z-index.js' | asset_url | script_tag }}
+{% endif %}
+
+<!-- Visual Search Configuration -->
+<script>
+  window.visualSearchConfig = {
+    proxyUrl: '{{ '/apps/proxy/search-image' | absolute_url }}',
+    shop: '{{ shop.permanent_domain }}',
+    maxFileSize: {{ block.settings.max_file_size | default: 5242880 }},
+    maxResults: {{ block.settings.max_results | default: 12 }},
+    imageQuality: {{ block.settings.image_quality | default: 0.8 }},
+    targetSize: {{ block.settings.target_size | default: 224 }},
+    cameraEnabled: {{ block.settings.enable_camera | default: true }},
+    debug: {{ block.settings.debug_mode | default: false }}
+  };
+  
+  {% if block.settings.debug_mode %}
+  console.log('[Visual Search] Configuration:', window.visualSearchConfig);
+  {% endif %}
+</script>
+
+{% if block.settings.custom_css %}
+<style>
+  {{ block.settings.custom_css }}
+</style>
+{% endif %}
+
+{% schema %}
+{
+  "name": "Visual Search Bar",
+  "target": "section",
+  "settings": [
+    {
+      "type": "header",
+      "content": "Search Configuration"
+    },
+    {
+      "type": "checkbox",
+      "id": "enable_camera",
+      "label": "Enable Camera Capture",
+      "default": true,
+      "info": "Allow users to take photos with their device camera"
+    },
+    {
+      "type": "range",
+      "id": "max_results",
+      "label": "Maximum Results",
+      "min": 4,
+      "max": 24,
+      "step": 4,
+      "default": 12,
+      "info": "Number of similar products to display"
+    },
+    {
+      "type": "select",
+      "id": "max_file_size",
+      "label": "Maximum File Size",
+      "options": [
+        {
+          "value": "2097152",
+          "label": "2MB"
+        },
+        {
+          "value": "5242880",
+          "label": "5MB (Recommended)"
+        },
+        {
+          "value": "10485760",
+          "label": "10MB"
+        }
+      ],
+      "default": "5242880",
+      "info": "Maximum allowed image file size"
+    },
+    {
+      "type": "header",
+      "content": "Image Processing"
+    },
+    {
+      "type": "range",
+      "id": "image_quality",
+      "label": "Image Compression Quality",
+      "min": 0.5,
+      "max": 1,
+      "step": 0.1,
+      "default": 0.8,
+      "info": "Lower values reduce file size but may affect search accuracy"
+    },
+    {
+      "type": "select",
+      "id": "target_size",
+      "label": "Target Image Size",
+      "options": [
+        {
+          "value": "224",
+          "label": "224px (CLIP Standard)"
+        },
+        {
+          "value": "336",
+          "label": "336px (Higher Quality)"
+        },
+        {
+          "value": "448",
+          "label": "448px (Maximum Quality)"
+        }
+      ],
+      "default": "224",
+      "info": "Images will be resized to this dimension for processing"
+    },
+    {
+      "type": "header",
+      "content": "Developer Options"
+    },
+    {
+      "type": "checkbox",
+      "id": "debug_mode",
+      "label": "Debug Mode",
+      "default": false,
+      "info": "Enable console logging for debugging"
+    },
+    {
+      "type": "textarea",
+      "id": "custom_css",
+      "label": "Custom CSS",
+      "info": "Add custom styles to override defaults"
+    }
+  ]
+}
+{% endschema %}
