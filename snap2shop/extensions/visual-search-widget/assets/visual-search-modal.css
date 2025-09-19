@@ -474,7 +474,7 @@
 .search .visual-search-camera-btn,
 [class*="search"] .visual-search-camera-btn {
   position: absolute !important;
-  right: 12px !important; /* Position on the right side */
+  right: 45px !important; /* Position away from clear button */
   top: 50% !important;
   transform: translateY(-50%) !important;
   z-index: 1000 !important;
@@ -566,6 +566,36 @@
   
   .visual-search-result-title {
     font-size: 0.8125rem;
+  }
+}
+
+/* Mobile-specific camera icon positioning */
+@media (max-width: 768px) {
+  .predictive-search .visual-search-camera-btn,
+  .header__search .visual-search-camera-btn,
+  .search .visual-search-camera-btn,
+  [class*="search"] .visual-search-camera-btn {
+    right: 50px !important; /* More space on mobile for clear buttons */
+    min-width: 32px !important;
+    min-height: 32px !important;
+    padding: 6px !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .predictive-search .visual-search-camera-btn,
+  .header__search .visual-search-camera-btn,
+  .search .visual-search-camera-btn,
+  [class*="search"] .visual-search-camera-btn {
+    right: 55px !important; /* Even more space on small screens */
+    min-width: 28px !important;
+    min-height: 28px !important;
+    padding: 4px !important;
+  }
+
+  .visual-search-camera-btn svg {
+    width: 16px !important;
+    height: 16px !important;
   }
 }
 
