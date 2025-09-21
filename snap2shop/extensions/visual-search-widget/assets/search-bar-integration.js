@@ -441,7 +441,7 @@
                     <p class="visual-search-upload-text">Drop an image here or click to browse</p>
                     <p class="visual-search-upload-hint">Supports JPG, PNG, WebP up to 5MB</p>
                   </div>
-                  <input type="file" id="modal-image-input" class="visual-search-file-input" accept="image/*" capture="environment" hidden>
+                  <input type="file" id="modal-image-input" class="visual-search-file-input" accept="image/*" hidden>
                   <div class="visual-search-image-preview" id="modal-image-preview" style="display: none;">
                     <img class="visual-search-preview-image" id="modal-preview-image" alt="Uploaded image">
                     <button class="visual-search-remove-image" id="modal-remove-image" type="button">&times;</button>
