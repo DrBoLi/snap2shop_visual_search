@@ -16,11 +16,23 @@ window.initVisualSearchWidget = function(blockId, config) {
   const errorMessage = document.getElementById(`error-message-${blockId}`);
 
   let selectedFile = null;
+  let analyticsTracker = null;
+  let currentSearchId = null;
+
+  // Initialize analytics tracker
+  if (window.AnalyticsTracker) {
+    const shop = window.Shopify?.shop || window.location.hostname;
+    analyticsTracker = new window.AnalyticsTracker(shop);
+  }
 
   // File upload handling
   uploadArea.addEventListener('click', () => {
     if (!imagePreview.style.display || imagePreview.style.display === 'none') {
       imageInput.click();
+      // Track upload area click
+      if (analyticsTracker) {
+        analyticsTracker.trackWidgetInteraction('upload_area_clicked');
+      }
     }
   });
 
@@ -58,6 +70,15 @@ window.initVisualSearchWidget = function(blockId, config) {
   clearResults.addEventListener('click', clearSearchResults);
 
   function handleFileSelect(file) {
+    // Track file selection
+    if (analyticsTracker) {
+      analyticsTracker.trackWidgetInteraction('file_selected', {
+        fileSize: file.size,
+        fileType: file.type,
+        fileName: file.name
+      });
+    }
+
     // Validate file type
     if (!file.type.startsWith('image/')) {
       showError('Please select a valid image file (JPG, PNG, WebP)');
@@ -99,6 +120,14 @@ window.initVisualSearchWidget = function(blockId, config) {
 
     setLoading(true);
     hideError();
+    
+    // Track search initiation
+    if (analyticsTracker) {
+      analyticsTracker.trackWidgetInteraction('search_initiated', {
+        fileSize: selectedFile.size,
+        fileType: selectedFile.type
+      });
+    }
     
     try {
       const formData = new FormData();
@@ -153,6 +182,13 @@ window.initVisualSearchWidget = function(blockId, config) {
 
         console.log('Search results received:', data);
         console.log('Number of results:', data.results?.length || 0);
+        
+        // Capture searchId from API response for click tracking
+        if (data.searchId) {
+          currentSearchId = data.searchId;
+          console.log('✅ Search ID captured for click tracking:', currentSearchId);
+        }
+        
         displayResults(data.results || []);
         
       } catch (parseError) {
@@ -168,6 +204,14 @@ window.initVisualSearchWidget = function(blockId, config) {
     } catch (error) {
       console.error('Final error handler:', error);
       
+      // Track search error
+      if (analyticsTracker) {
+        analyticsTracker.trackError('search_failed', error.message, {
+          fileSize: selectedFile?.size,
+          fileType: selectedFile?.type
+        });
+      }
+      
       showError(error.message || 'Search failed. Please try again.');
     } finally {
       setLoading(false);
@@ -182,15 +226,15 @@ window.initVisualSearchWidget = function(blockId, config) {
 
     resultsGrid.innerHTML = '';
     
-    results.forEach(result => {
-      const resultElement = createResultElement(result);
+    results.forEach((result, index) => {
+      const resultElement = createResultElement(result, index + 1);
       resultsGrid.appendChild(resultElement);
     });
 
     searchResults.style.display = 'block';
   }
 
-  function createResultElement(result) {
+  function createResultElement(result, position) {
     const resultItem = document.createElement('a');
     resultItem.className = 'result-item';
     resultItem.href = `/products/${result.handle}`;
@@ -207,6 +251,34 @@ window.initVisualSearchWidget = function(blockId, config) {
         ${similarity ? `<p class="similarity-score">${similarity}% match</p>` : ''}
       </div>
     `;
+
+    // Add click tracking (don't prevent default navigation)
+    resultItem.addEventListener('click', async (e) => {
+      try {
+        const shop = window.Shopify?.shop || window.location.hostname;
+        const response = await fetch('/apps/proxy/analytics/click', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            shop,
+            searchId: currentSearchId,
+            productId: result.id,
+            position: position,
+            similarity: result.similarity,
+            clickType: 'search_result'
+          })
+        });
+        
+        if (response.ok) {
+          console.log('✅ Click tracked successfully');
+        } else {
+          console.warn('⚠️ Click tracking failed:', response.status);
+        }
+      } catch (error) {
+        console.error('❌ Click tracking error:', error);
+      }
+      // Don't prevent default - let the link navigate normally
+    });
 
     return resultItem;
   }

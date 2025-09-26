@@ -4,6 +4,7 @@ import { unstable_createMemoryUploadHandler } from "@remix-run/node";
 import db from "../db.server";
 import clipInference from "../services/clipInference.server";
 import vectorDb from "../services/vectorDb.server";
+import analyticsAggregation from "../services/analyticsAggregation.server";
 
 export const action = async ({ request, params }) => {
   console.log('🔍 App proxy request received');
@@ -14,10 +15,171 @@ export const action = async ({ request, params }) => {
   const url = new URL(request.url);
   const pathname = url.pathname;
   
-  // Check if this is the search-image endpoint
-  if (!pathname.includes('search-image')) {
+  // Route to appropriate handler based on path
+  if (pathname.includes('analytics/track')) {
+    return handleAnalyticsTracking(request);
+  } else if (pathname.includes('analytics/search')) {
+    return handleSearchTracking(request);
+  } else if (pathname.includes('analytics/click')) {
+    return handleClickTracking(request);
+  } else if (pathname.includes('search-image')) {
+    return handleImageSearch(request);
+  } else {
     return new Response('Not Found', { status: 404 });
   }
+};
+
+// Handle analytics tracking
+async function handleAnalyticsTracking(request) {
+  const headers = {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, X-Requested-With",
+  };
+
+  if (request.method === "OPTIONS") {
+    return new Response(null, { status: 200, headers });
+  }
+
+  try {
+    const { eventType, data, sessionId, shop } = await request.json();
+    
+    if (!shop) {
+      return json({ error: "Shop domain is required" }, { status: 400, headers });
+    }
+
+    // Check rate limit
+    if (!analyticsAggregation.checkRateLimit(shop, eventType)) {
+      return json({ error: "Rate limit exceeded" }, { status: 429, headers });
+    }
+
+    // Sanitize and validate data
+    const sanitizedData = sanitizeAnalyticsData(data);
+    
+    // Generate search ID if this is a search event
+    const searchId = eventType.includes('search') ? analyticsAggregation.generateSearchId() : null;
+
+    // Store in database
+    await db.visualSearchEvent.create({
+      data: {
+        shop,
+        sessionId,
+        eventType,
+        searchId,
+        queryData: sanitizedData,
+        userAgent: request.headers.get("user-agent"),
+        ipAddress: analyticsAggregation.getClientIP(request),
+      }
+    });
+
+    // Optional: Send to external analytics (Segment, etc.)
+    if (process.env.SEGMENT_WRITE_KEY) {
+      await sendToSegment(shop, eventType, sanitizedData);
+    }
+
+    return json({ success: true }, { headers });
+  } catch (error) {
+    console.error('Analytics tracking error:', error);
+    return json({ error: "Failed to track event" }, { status: 500, headers });
+  }
+}
+
+// Handle search tracking
+async function handleSearchTracking(request) {
+  const headers = {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, X-Requested-With",
+  };
+
+  if (request.method === "OPTIONS") {
+    return new Response(null, { status: 200, headers });
+  }
+
+  try {
+    const { shop, queryData, results, sessionId } = await request.json();
+    
+    if (!shop) {
+      return json({ error: "Shop domain is required" }, { status: 400, headers });
+    }
+
+    const searchId = analyticsAggregation.generateSearchId();
+
+    // Store search event
+    await db.visualSearchEvent.create({
+      data: {
+        shop,
+        sessionId,
+        eventType: 'image_search',
+        searchId,
+        queryData: {
+          ...queryData,
+          resultCount: results?.length || 0
+        },
+        results: results ? results.map(r => ({
+          productId: r.id,
+          similarity: r.similarity,
+          position: results.indexOf(r) + 1
+        })) : null,
+        userAgent: request.headers.get("user-agent"),
+        ipAddress: analyticsAggregation.getClientIP(request),
+      }
+    });
+
+    return json({ success: true, searchId }, { headers });
+  } catch (error) {
+    console.error('Search tracking error:', error);
+    return json({ error: "Failed to track search" }, { status: 500, headers });
+  }
+}
+
+// Handle click tracking
+async function handleClickTracking(request) {
+  const headers = {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, X-Requested-With",
+  };
+
+  if (request.method === "OPTIONS") {
+    return new Response(null, { status: 200, headers });
+  }
+
+  try {
+    const { shop, searchId, productId, position, similarity, clickType, sessionId } = await request.json();
+    
+    if (!shop || !productId) {
+      return json({ error: "Shop and productId are required" }, { status: 400, headers });
+    }
+
+    // Store click event
+    await db.searchResultClick.create({
+      data: {
+        shop,
+        searchId,
+        sessionId,
+        productId,
+        position: position || 1,
+        similarity: similarity || null,
+        clickType: clickType || 'search_result',
+      }
+    });
+
+    // Update popular content
+    await updatePopularContent(shop, 'product', productId, productId);
+
+    return json({ success: true }, { headers });
+  } catch (error) {
+    console.error('Click tracking error:', error);
+    return json({ error: "Failed to track click" }, { status: 500, headers });
+  }
+}
+
+// Handle image search (existing functionality)
+async function handleImageSearch(request) {
+  console.log('🔍 App proxy request received');
+  console.log('Method:', request.method);
+  console.log('URL:', request.url);
   
   // CORS headers for theme extension requests
   const headers = {
@@ -142,6 +304,7 @@ export const action = async ({ request, params }) => {
         product: {
           select: {
             shopifyProductId: true,
+            handle: true,
             title: true,
             price: true,
             description: true
@@ -155,9 +318,9 @@ export const action = async ({ request, params }) => {
     for (const embedding of similarEmbeddings) {
       const productImage = productImages.find(img => img.id === embedding.imageId);
       if (productImage && results.length < maxResults) {
-        // Create product handle from Shopify product ID
-        const handle = `product-${productImage.product.shopifyProductId}`;
-        
+        // Use actual product handle from database, or fallback to ID-based handle
+        const handle = productImage.product.handle || `product-${productImage.product.shopifyProductId}`;
+
         results.push({
           id: productImage.product.shopifyProductId,
           title: productImage.product.title,
@@ -204,3 +367,59 @@ export const loader = async ({ request, params }) => {
 
   return new Response(null, { status: 200, headers });
 };
+
+// Helper functions
+function sanitizeAnalyticsData(data) {
+  if (!data || typeof data !== 'object') return {};
+  
+  // Remove sensitive information and limit size
+  const sanitized = { ...data };
+  
+  // Remove potential PII
+  delete sanitized.email;
+  delete sanitized.phone;
+  delete sanitized.address;
+  
+  // Limit string lengths
+  Object.keys(sanitized).forEach(key => {
+    if (typeof sanitized[key] === 'string' && sanitized[key].length > 1000) {
+      sanitized[key] = sanitized[key].substring(0, 1000) + '...';
+    }
+  });
+  
+  return sanitized;
+}
+
+async function sendToSegment(shop, eventType, data) {
+  // Placeholder for Segment integration
+  // This would send data to Segment or other analytics providers
+  console.log('Would send to Segment:', { shop, eventType, data });
+}
+
+async function updatePopularContent(shop, contentType, contentId, contentName) {
+  try {
+    await db.popularContent.upsert({
+      where: {
+        shop_contentType_contentId: {
+          shop,
+          contentType,
+          contentId
+        }
+      },
+      update: {
+        clickCount: { increment: 1 },
+        lastUsed: new Date()
+      },
+      create: {
+        shop,
+        contentType,
+        contentId,
+        contentName,
+        clickCount: 1,
+        lastUsed: new Date()
+      }
+    });
+  } catch (error) {
+    console.error('Error updating popular content:', error);
+  }
+}

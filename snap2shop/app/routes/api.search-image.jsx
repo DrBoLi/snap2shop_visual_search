@@ -3,6 +3,7 @@ import { authenticate } from "../shopify.server";
 import clipInference from "../services/clipInference.server";
 import vectorDb from "../services/vectorDb.server";
 import imageProcessing from "../services/imageProcessing.server";
+import db from "../db.server.js";
 
 export const action = async ({ request }) => {
   if (request.method !== "POST") {
@@ -80,6 +81,7 @@ export const action = async ({ request }) => {
       product: {
         id: item.product.id,
         shopifyProductId: item.product.shopifyProductId,
+        handle: item.product.handle,
         title: item.product.title,
         description: item.product.description,
         price: item.product.price,
@@ -97,9 +99,43 @@ export const action = async ({ request }) => {
     // Get search statistics
     const stats = await vectorDb.getEmbeddingStats(shop);
 
+    // Track analytics - Create search event
+    const searchId = `search_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
+    try {
+      await db.visualSearchEvent.create({
+        data: {
+          shop,
+          sessionId: `session_${Date.now()}`,
+          eventType: 'image_search',
+          searchId,
+          queryData: {
+            fileSize: imageFile?.size || 0,
+            fileType: imageFile?.type || 'image/url',
+            resultCount: results.length,
+            topK,
+            threshold
+          },
+          results: results.map((r, index) => ({
+            productId: r.productId,
+            similarity: r.similarity,
+            position: index + 1
+          })),
+          userAgent: request.headers.get("user-agent"),
+          ipAddress: getClientIP(request),
+        }
+      });
+      
+      console.log(`✅ Analytics tracked: Search event created for shop ${shop}`);
+    } catch (analyticsError) {
+      console.error('❌ Analytics tracking failed:', analyticsError);
+      // Don't fail the search if analytics fails
+    }
+
     return json({
       success: true,
       results,
+      searchId, // Include searchId for click tracking
       metadata: {
         queryImage: imageMetadata,
         totalResults: results.length,
@@ -158,3 +194,19 @@ export const loader = async ({ request }) => {
 
   return action({ request: newRequest });
 };
+
+// Helper function to get client IP
+function getClientIP(request) {
+  const forwarded = request.headers.get('x-forwarded-for');
+  const realIP = request.headers.get('x-real-ip');
+  
+  if (forwarded) {
+    return forwarded.split(',')[0].trim();
+  }
+  
+  if (realIP) {
+    return realIP;
+  }
+  
+  return 'unknown';
+}

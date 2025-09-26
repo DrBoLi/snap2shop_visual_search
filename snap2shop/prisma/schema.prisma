@@ -35,6 +35,7 @@ model Product {
   id                String         @id @default(cuid())
   shopifyProductId  String
   shop              String
+  handle            String?
   title             String
   description       String?
   tags              String?
@@ -91,4 +92,69 @@ model ProductEmbedding {
 
   @@index([shop])
   @@index([imageId])
+}
+
+model VisualSearchEvent {
+  id          String   @id @default(cuid())
+  shop        String
+  sessionId   String?  // For user journey tracking
+  eventType   String   // 'image_search', 'text_search', 'camera_capture'
+  searchId    String   @unique // For linking searches to clicks
+  queryData   Json?    // Store search parameters, image metadata
+  results     Json?    // Store result IDs and similarity scores
+  userAgent   String?
+  ipAddress   String?  // For basic geo analytics
+  createdAt   DateTime @default(now())
+  
+  @@index([shop, eventType, createdAt])
+  @@index([shop, createdAt])
+  @@index([searchId])
+}
+
+model SearchResultClick {
+  id          String   @id @default(cuid())
+  shop        String
+  searchId    String   // Link to VisualSearchEvent
+  sessionId   String?
+  productId   String
+  position    Int      // Position in results (1-based)
+  similarity  Float?   // Similarity score of clicked result
+  clickType   String   // 'search_result', 'recommendation', 'suggestion'
+  createdAt   DateTime @default(now())
+  
+  @@index([shop, createdAt])
+  @@index([searchId])
+  @@index([productId])
+}
+
+model PopularContent {
+  id          String   @id @default(cuid())
+  shop        String
+  contentType String   // 'keyword', 'collection', 'product', 'category'
+  contentId   String
+  contentName String
+  clickCount  Int      @default(0)
+  searchCount Int      @default(0) // How often it appears in searches
+  lastUsed    DateTime @default(now())
+  createdAt   DateTime @default(now())
+  
+  @@unique([shop, contentType, contentId])
+  @@index([shop, contentType, clickCount])
+  @@index([shop, lastUsed])
+}
+
+// Pre-aggregated analytics for performance
+model AnalyticsAggregation {
+  id          String   @id @default(cuid())
+  shop        String
+  date        DateTime // Date (no time component)
+  period      String   // 'daily', 'weekly', 'monthly'
+  metric      String   // 'searches', 'clicks', 'conversions'
+  value       Int      @default(0)
+  metadata    Json?    // Additional context (device, source, etc.)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@unique([shop, date, period, metric])
+  @@index([shop, date, period])
 }

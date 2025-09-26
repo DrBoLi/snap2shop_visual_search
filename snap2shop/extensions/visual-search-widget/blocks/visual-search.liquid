@@ -55,17 +55,30 @@
   </div>
 </div>
 
+<!-- Load analytics tracker first -->
+<script src="{{ 'analytics-tracker.js' | asset_url }}" defer></script>
+
 <script>
   (function() {
     const blockId = '{{ block.id }}';
     const appUrl = '{{ shop.permanent_domain }}';
     
-    // Initialize visual search widget
-    window.initVisualSearchWidget(blockId, {
-      appUrl: appUrl,
-      maxFileSize: {{ block.settings.max_file_size | default: 10485760 }}, // 10MB
-      maxResults: {{ block.settings.max_results | default: 12 }}
-    });
+    // Wait for analytics tracker to load
+    function initWidget() {
+      if (window.AnalyticsTracker) {
+        // Initialize visual search widget
+        window.initVisualSearchWidget(blockId, {
+          appUrl: appUrl,
+          maxFileSize: {{ block.settings.max_file_size | default: 10485760 }}, // 10MB
+          maxResults: {{ block.settings.max_results | default: 12 }}
+        });
+      } else {
+        // Retry after a short delay
+        setTimeout(initWidget, 100);
+      }
+    }
+    
+    initWidget();
   })();
 </script>
 

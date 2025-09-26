@@ -19,7 +19,14 @@
     "shopify": "shopify",
     "prisma": "prisma",
     "graphql-codegen": "graphql-codegen",
-    "vite": "vite"
+    "vite": "vite",
+    "analytics:setup": "node scripts/setup-analytics.js",
+    "analytics:test": "node scripts/test-analytics.js",
+    "analytics:test-simple": "node scripts/test-simple-analytics.js",
+    "analytics:test-flow": "node scripts/test-analytics-flow.js",
+    "analytics:cleanup": "node scripts/cleanup-analytics.js",
+    "analytics:populate": "node scripts/populate-sample-data.js",
+    "analytics:reset": "node scripts/reset-analytics-data.js"
   },
   "type": "module",
   "engines": {

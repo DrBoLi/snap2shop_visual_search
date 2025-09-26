@@ -10,6 +10,7 @@ const PRODUCTS_QUERY = `
       edges {
         node {
           id
+          handle
           title
           description
           tags
@@ -195,6 +196,7 @@ async function syncProductsBackground(shop, admin) {
           },
         },
         update: {
+          handle: product.handle,
           title: product.title,
           description: product.description || null,
           tags: product.tags.join(",") || null,
@@ -203,6 +205,7 @@ async function syncProductsBackground(shop, admin) {
         create: {
           shopifyProductId,
           shop,
+          handle: product.handle,
           title: product.title,
           description: product.description || null,
           tags: product.tags.join(",") || null,

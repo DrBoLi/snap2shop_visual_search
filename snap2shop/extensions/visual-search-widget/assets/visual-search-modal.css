@@ -575,7 +575,7 @@
   .header__search .visual-search-camera-btn,
   .search .visual-search-camera-btn,
   [class*="search"] .visual-search-camera-btn {
-    right: 50px !important; /* More space on mobile for clear buttons */
+    right: 100px !important; /* More space on mobile for clear buttons */
     min-width: 32px !important;
     min-height: 32px !important;
     padding: 6px !important;
