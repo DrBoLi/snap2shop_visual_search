@@ -3,6 +3,143 @@
  * Handles image upload, search requests, and results display
  */
 
+const VisualSearchEnv = (function initVisualSearchEnv(existing) {
+  if (existing) {
+    return existing;
+  }
+
+  const DEV_HOST_PATTERNS = [
+    /^localhost$/i,
+    /^127\./,
+    /^0\.0\.0\.0$/,
+    /\.ngrok\.io$/i,
+    /\.ngrok-free\.app$/i,
+    /\.trycloudflare\.com$/i,
+    /\.loca\.lt$/i,
+    /\.dev\.local$/i,
+    /\.test$/i
+  ];
+
+  const normalise = (value) => (typeof value === 'string' ? value.toLowerCase() : '');
+
+  const isDevelopmentHost = (host = window.location.hostname || '') => {
+    return DEV_HOST_PATTERNS.some((pattern) => pattern.test(host));
+  };
+
+  const detectEnvironment = (config = {}) => {
+    const forced = normalise(config.environment || config.env || config.mode);
+    if (forced) {
+      return forced;
+    }
+
+    const host = normalise(window.location.hostname || '');
+    if (!host) {
+      return 'production';
+    }
+
+    return isDevelopmentHost(host) ? 'development' : 'production';
+  };
+
+  const defaultEndpoints = {
+    searchImage: {
+      development: '/apps/proxy/search-image',
+      production: '/apps/proxy/api/search-image'
+    },
+    analyticsClick: {
+      development: '/apps/proxy/analytics/click',
+      production: '/apps/proxy/analytics/click'
+    },
+    analyticsTrack: {
+      development: '/apps/proxy/analytics/track',
+      production: '/apps/proxy/analytics/track'
+    },
+    analyticsBase: {
+      development: '/apps/proxy',
+      production: '/apps/proxy'
+    }
+  };
+
+  const detectShopDomain = (config = {}, fallback) => {
+    const candidates = [
+      config.shop,
+      config.shopDomain,
+      config.shopifyShopDomain,
+      window.visualSearchConfig?.shop,
+      window.visualSearchConfig?.shopDomain,
+      window.Shopify?.shop,
+      window.Shopify?.config?.shopDomain,
+      document.querySelector('meta[name="shopify-shop-domain"]')?.getAttribute('content'),
+      document.documentElement?.getAttribute('data-shopify-shop-domain'),
+      fallback,
+      window.location.hostname
+    ];
+
+    return candidates.find((value) => typeof value === 'string' && value.trim().length > 0)?.trim() || '';
+  };
+
+  const resolveEndpoint = (config = {}, key, fallback) => {
+    if (!key) {
+      return fallback || '';
+    }
+
+    const endpoints = config.endpoints || {};
+    if (typeof endpoints[key] === 'string' && endpoints[key].trim().length > 0) {
+      return endpoints[key];
+    }
+
+    const directOverride = config[`${key}Url`] || config[key];
+    if (typeof directOverride === 'string' && directOverride.trim().length > 0) {
+      return directOverride;
+    }
+
+    if (key === 'searchImage') {
+      if (typeof config.proxyUrl === 'string' && config.proxyUrl.trim().length > 0) {
+        return config.proxyUrl;
+      }
+
+      if (typeof config.devProxyUrl === 'string' && config.devProxyUrl.trim().length > 0) {
+        const env = detectEnvironment(config);
+        if (env === 'development') {
+          return config.devProxyUrl;
+        }
+      }
+    }
+
+    const env = detectEnvironment(config);
+    const table = defaultEndpoints[key] || {};
+    const envKey = env === 'development' ? 'development' : 'production';
+
+    return table[envKey] || fallback || table.production || fallback || '';
+  };
+
+  const getInfo = (config = {}) => {
+    const environment = detectEnvironment(config);
+    return {
+      environment,
+      isDevelopment: environment === 'development',
+      hostname: window.location.hostname,
+      shopDomain: detectShopDomain(config),
+      endpoints: {
+        searchImage: resolveEndpoint(config, 'searchImage'),
+        analyticsClick: resolveEndpoint(config, 'analyticsClick'),
+        analyticsTrack: resolveEndpoint(config, 'analyticsTrack'),
+        analyticsBase: resolveEndpoint(config, 'analyticsBase')
+      }
+    };
+  };
+
+  const helpers = {
+    detectEnvironment,
+    resolveEndpoint,
+    detectShopDomain,
+    getInfo,
+    isDevelopmentHost
+  };
+
+  window.VisualSearchEnv = helpers;
+  return helpers;
+})(window.VisualSearchEnv);
+
 window.initVisualSearchWidget = function(blockId, config) {
   const uploadArea = document.getElementById(`upload-area-${blockId}`);
   const imageInput = document.getElementById(`image-input-${blockId}`);
@@ -18,11 +155,17 @@ window.initVisualSearchWidget = function(blockId, config) {
   let selectedFile = null;
   let analyticsTracker = null;
   let currentSearchId = null;
+  const environmentInfo = VisualSearchEnv.getInfo(config || {});
+  const detectedShopDomain = environmentInfo.shopDomain || VisualSearchEnv.detectShopDomain(config);
+
+  console.log('Visual Search Widget environment:', environmentInfo.environment, {
+    environmentInfo,
+    shopDomain: detectedShopDomain
+  });
 
   // Initialize analytics tracker
   if (window.AnalyticsTracker) {
-    const shop = window.Shopify?.shop || window.location.hostname;
-    analyticsTracker = new window.AnalyticsTracker(shop);
+    analyticsTracker = new window.AnalyticsTracker(detectedShopDomain, config || {});
   }
 
   // File upload handling
@@ -136,7 +279,7 @@ window.initVisualSearchWidget = function(blockId, config) {
       
       // Add shop domain from current URL or Shopify global
       // For development, use the known shop domain
-      const detectedShop = window.Shopify?.shop || window.location.hostname;
+      const detectedShop = detectedShopDomain || window.location.hostname;
       const shopDomain = detectedShop.includes('quickstart') ? 'snap2shopdemo.myshopify.com' : detectedShop;
       
       // Debug shop domain detection
@@ -145,16 +288,20 @@ window.initVisualSearchWidget = function(blockId, config) {
       console.log('Shopify object:', window.Shopify);
       formData.append('shop', shopDomain);
 
-      console.log('Making request to:', '/apps/proxy/api/search-image');
-      console.log('Shop domain:', shopDomain);
-      console.log('Max results:', config.maxResults);
-
       let response;
       try {
-        // Use relative URL for app proxy - FIXED: Added leading slash
-        const apiUrl = '/apps/proxy/api/search-image';
-        console.log('Using relative API URL:', apiUrl);
-        
+        const apiUrl = VisualSearchEnv.resolveEndpoint(config, 'searchImage');
+        if (!apiUrl) {
+          throw new Error('Search endpoint is not configured for this environment.');
+        }
+
+        console.log('Visual Search request:', {
+          apiUrl,
+          environment: environmentInfo.environment,
+          shopDomain,
+          maxResults: config.maxResults
+        });
+
         response = await fetch(apiUrl, {
           method: 'POST',
           body: formData,
@@ -190,7 +337,26 @@ window.initVisualSearchWidget = function(blockId, config) {
         }
         
         displayResults(data.results || []);
-        
+
+        if (analyticsTracker) {
+          try {
+            const queryData = {
+              source: 'search_bar_widget',
+              imageType: selectedFile?.type,
+              imageSize: selectedFile?.size,
+              resultsCount: data.results?.length || 0,
+              environment: environmentInfo.environment
+            };
+            const trackedSearchId = await analyticsTracker.trackSearch(queryData, data.results || []);
+            if (trackedSearchId) {
+              currentSearchId = trackedSearchId;
+              console.log('✅ Analytics search tracked with ID:', currentSearchId);
+            }
+          } catch (analyticsError) {
+            console.warn('⚠️ Failed to track analytics search event:', analyticsError);
+          }
+        }
+
       } catch (parseError) {
         console.error('Search error:', parseError);
         console.error('Response status:', response?.status);
@@ -255,8 +421,14 @@ window.initVisualSearchWidget = function(blockId, config) {
     // Add click tracking (don't prevent default navigation)
     resultItem.addEventListener('click', async (e) => {
       try {
-        const shop = window.Shopify?.shop || window.location.hostname;
-        const response = await fetch('/apps/proxy/analytics/click', {
+        const shop = detectedShopDomain || VisualSearchEnv.detectShopDomain(config);
+        const analyticsEndpoint = VisualSearchEnv.resolveEndpoint(config, 'analyticsClick');
+        if (!analyticsEndpoint) {
+          console.warn('⚠️ Analytics endpoint not configured; click will not be tracked.');
+          return;
+        }
+
+        const response = await fetch(analyticsEndpoint, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

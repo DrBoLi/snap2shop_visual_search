@@ -4,10 +4,26 @@
  */
 
 class AnalyticsTracker {
-  constructor(shop) {
-    this.shop = shop;
+  constructor(shop, config = {}) {
+    const envHelpers = window.VisualSearchEnv;
+    const envInfo = envHelpers ? envHelpers.getInfo(config) : null;
+    const shopDomain = envHelpers
+      ? envHelpers.detectShopDomain(config, shop)
+      : (shop || window.Shopify?.shop || window.location.hostname);
+
+    this.shop = shopDomain;
     this.sessionId = this.getOrCreateSessionId();
-    this.baseUrl = '/apps/proxy';
+
+    const baseUrlOverride = config.analyticsBaseUrl || config.analyticsBase;
+    const trackUrlOverride = config.analyticsTrackUrl || config.analyticsTrack;
+
+    this.baseUrl = (envHelpers && envHelpers.resolveEndpoint(config, 'analyticsBase')) || baseUrlOverride || '/apps/proxy';
+    this.analyticsTrackEndpoint = (envHelpers && envHelpers.resolveEndpoint(config, 'analyticsTrack')) || trackUrlOverride || `${this.baseUrl}/analytics/track`;
+    this.environmentInfo = envInfo;
+
+    if (!this.shop) {
+      console.warn('[Visual Search] AnalyticsTracker missing shop domain; events will be skipped');
+    }
   }
 
   /**
@@ -26,8 +42,20 @@ class AnalyticsTracker {
    * Track a generic analytics event
    */
   async track(eventType, data) {
+    if (!this.shop) {
+      console.warn('[Visual Search] Skipping analytics event due to missing shop domain', eventType, data);
+      return;
+    }
+
+    if (!this.analyticsTrackEndpoint) {
+      console.warn('[Visual Search] Analytics endpoint not configured; skipping event', eventType);
+      return;
+    }
+
     const payload = {
       eventType,
+      shop: this.shop,
+      sessionId: this.sessionId,
       data: {
         ...data,
         sessionId: this.sessionId,
@@ -36,9 +64,15 @@ class AnalyticsTracker {
       }
     };
 
+    console.log('[Visual Search] Tracking analytics event', {
+      eventType,
+      endpoint: this.analyticsTrackEndpoint,
+      payload
+    });
+
     // Method 1: Direct API call (primary)
     try {
-      const response = await fetch(`${this.baseUrl}/analytics/track`, {
+      const response = await fetch(this.analyticsTrackEndpoint, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -197,4 +231,3 @@ class AnalyticsTracker {
 
 // Export for use in other scripts
 window.AnalyticsTracker = AnalyticsTracker;
-

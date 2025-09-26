@@ -43,7 +43,7 @@ async function handleAnalyticsTracking(request) {
 
   try {
     const { eventType, data, sessionId, shop } = await request.json();
-    
+
     if (!shop) {
       return json({ error: "Shop domain is required" }, { status: 400, headers });
     }
@@ -55,9 +55,11 @@ async function handleAnalyticsTracking(request) {
 
     // Sanitize and validate data
     const sanitizedData = sanitizeAnalyticsData(data);
-    
-    // Generate search ID if this is a search event
-    const searchId = eventType.includes('search') ? analyticsAggregation.generateSearchId() : null;
+
+    const providedSearchId = data?.searchId;
+    const searchId = providedSearchId || (eventType.includes('search')
+      ? analyticsAggregation.generateSearchId()
+      : `evt_${Date.now()}_${Math.random().toString(36).slice(2)}`);
 
     // Store in database
     await db.visualSearchEvent.create({
@@ -77,7 +79,7 @@ async function handleAnalyticsTracking(request) {
       await sendToSegment(shop, eventType, sanitizedData);
     }
 
-    return json({ success: true }, { headers });
+    return json({ success: true, searchId }, { headers });
   } catch (error) {
     console.error('Analytics tracking error:', error);
     return json({ error: "Failed to track event" }, { status: 500, headers });

@@ -6,6 +6,143 @@
 (function() {
   'use strict';
 
+  const VisualSearchEnv = (function initVisualSearchEnv(existing) {
+    if (existing) {
+      return existing;
+    }
+
+    const DEV_HOST_PATTERNS = [
+      /^localhost$/i,
+      /^127\./,
+      /^0\.0\.0\.0$/,
+      /\.ngrok\.io$/i,
+      /\.ngrok-free\.app$/i,
+      /\.trycloudflare\.com$/i,
+      /\.loca\.lt$/i,
+      /\.dev\.local$/i,
+      /\.test$/i
+    ];
+
+    const normalise = (value) => (typeof value === 'string' ? value.toLowerCase() : '');
+
+    const isDevelopmentHost = (host = window.location.hostname || '') => {
+      return DEV_HOST_PATTERNS.some((pattern) => pattern.test(host));
+    };
+
+    const detectEnvironment = (config = {}) => {
+      const forced = normalise(config.environment || config.env || config.mode);
+      if (forced) {
+        return forced;
+      }
+
+      const host = normalise(window.location.hostname || '');
+      if (!host) {
+        return 'production';
+      }
+
+      return isDevelopmentHost(host) ? 'development' : 'production';
+    };
+
+    const defaultEndpoints = {
+      searchImage: {
+        development: '/apps/proxy/search-image',
+        production: '/apps/proxy/api/search-image'
+      },
+      analyticsClick: {
+        development: '/apps/proxy/analytics/click',
+        production: '/apps/proxy/analytics/click'
+      },
+      analyticsTrack: {
+        development: '/apps/proxy/analytics/track',
+        production: '/apps/proxy/analytics/track'
+      },
+      analyticsBase: {
+        development: '/apps/proxy',
+        production: '/apps/proxy'
+      }
+    };
+
+    const detectShopDomain = (config = {}, fallback) => {
+      const candidates = [
+        config.shop,
+        config.shopDomain,
+        config.shopifyShopDomain,
+        window.visualSearchConfig?.shop,
+        window.visualSearchConfig?.shopDomain,
+        window.Shopify?.shop,
+        window.Shopify?.config?.shopDomain,
+        document.querySelector('meta[name="shopify-shop-domain"]')?.getAttribute('content'),
+        document.documentElement?.getAttribute('data-shopify-shop-domain'),
+        fallback,
+        window.location.hostname
+      ];
+
+      return candidates.find((value) => typeof value === 'string' && value.trim().length > 0)?.trim() || '';
+    };
+
+    const resolveEndpoint = (config = {}, key, fallback) => {
+      if (!key) {
+        return fallback || '';
+      }
+
+      const endpoints = config.endpoints || {};
+      if (typeof endpoints[key] === 'string' && endpoints[key].trim().length > 0) {
+        return endpoints[key];
+      }
+
+      const directOverride = config[`${key}Url`] || config[key];
+      if (typeof directOverride === 'string' && directOverride.trim().length > 0) {
+        return directOverride;
+      }
+
+      if (key === 'searchImage') {
+        if (typeof config.proxyUrl === 'string' && config.proxyUrl.trim().length > 0) {
+          return config.proxyUrl;
+        }
+
+        if (typeof config.devProxyUrl === 'string' && config.devProxyUrl.trim().length > 0) {
+          const env = detectEnvironment(config);
+          if (env === 'development') {
+            return config.devProxyUrl;
+          }
+        }
+      }
+
+      const env = detectEnvironment(config);
+      const table = defaultEndpoints[key] || {};
+      const envKey = env === 'development' ? 'development' : 'production';
+
+      return table[envKey] || fallback || table.production || fallback || '';
+    };
+
+    const getInfo = (config = {}) => {
+      const environment = detectEnvironment(config);
+      return {
+        environment,
+        isDevelopment: environment === 'development',
+        hostname: window.location.hostname,
+        shopDomain: detectShopDomain(config),
+        endpoints: {
+          searchImage: resolveEndpoint(config, 'searchImage'),
+          analyticsClick: resolveEndpoint(config, 'analyticsClick'),
+          analyticsTrack: resolveEndpoint(config, 'analyticsTrack'),
+          analyticsBase: resolveEndpoint(config, 'analyticsBase')
+        }
+      };
+    };
+
+      const helpers = {
+        detectEnvironment,
+        resolveEndpoint,
+        detectShopDomain,
+        getInfo,
+        isDevelopmentHost
+      };
+
+    window.VisualSearchEnv = helpers;
+    return helpers;
+  })(window.VisualSearchEnv);
+
   class VisualSearchIntegration {
     constructor() {
       this.modal = null;
@@ -14,6 +151,8 @@
       this.modalId = 'visual-search-modal';
       this.initialized = false;
       this.errorHandler = null;
+      this.environmentInfo = VisualSearchEnv.getInfo(this.config);
+      this.shopDomain = this.environmentInfo.shopDomain || VisualSearchEnv.detectShopDomain(this.config);
       
       // Multiple selector strategy for theme compatibility
       this.searchSelectors = [
@@ -51,6 +190,14 @@
       if (this.initialized) return;
       
       console.log('[Visual Search] Initializing search bar integration');
+
+      // Refresh environment info in case host/context changed after load
+      this.environmentInfo = VisualSearchEnv.getInfo(this.config);
+      this.shopDomain = this.environmentInfo.shopDomain || VisualSearchEnv.detectShopDomain(this.config);
+      console.log(`[Visual Search] Environment detected: ${this.environmentInfo.environment}`, {
+        environmentInfo: this.environmentInfo,
+        shopDomain: this.shopDomain
+      });
       
       // Initialize error handler
       if (typeof ErrorHandler !== 'undefined') {
@@ -698,14 +845,26 @@
         const formData = new FormData();
         formData.append('image', processedBlob, 'search-image.jpg');
         formData.append('maxResults', this.config.maxResults || 12);
-        formData.append('shop', this.config.shop || window.Shopify?.shop || window.location.hostname);
+
+        const shopDomain = this.shopDomain || VisualSearchEnv.detectShopDomain(this.config);
+        if (!shopDomain) {
+          console.warn('[Visual Search] Unable to determine shop domain for search request');
+          this.showError('Unable to determine shop context for search. Please refresh the page.');
+          return;
+        }
+        formData.append('shop', shopDomain);
         
         // Use configured proxy URL (should be handled by Shopify App Proxy)
         // For local testing without Shopify proxy, use direct route
-        const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-        const apiUrl = this.config.proxyUrl ||
-                      (isLocal ? '/apps/proxy/search-image' : '/apps/proxy/api/search-image');
-        console.log('[Visual Search] Searching with URL:', apiUrl, 'isLocal:', isLocal);
+        const apiUrl = VisualSearchEnv.resolveEndpoint(this.config, 'searchImage');
+        const environment = this.environmentInfo?.environment || VisualSearchEnv.detectEnvironment(this.config);
+        console.log('[Visual Search] Searching with URL:', apiUrl, 'environment:', environment, 'shop:', shopDomain);
+
+        if (!apiUrl) {
+          console.error('[Visual Search] Unable to resolve API endpoint for search');
+          this.showError('Search endpoint is not configured for this environment.');
+          return;
+        }
         
         const response = await fetch(apiUrl, {
           method: 'POST',
