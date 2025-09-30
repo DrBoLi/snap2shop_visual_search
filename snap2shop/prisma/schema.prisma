@@ -40,11 +40,24 @@ model Product {
   description       String?
   tags              String?
   price             String?
+  availableForSale  Boolean        @default(true)
+  totalInventory    Int?
   createdAt         DateTime       @default(now())
   updatedAt         DateTime       @updatedAt
   images            ProductImage[]
 
   @@unique([shopifyProductId, shop])
+  @@index([shop])
+}
+
+model VisualSearchSettings {
+  id                   String   @id @default(cuid())
+  shop                 String   @unique
+  hideOutOfStock       Boolean  @default(false)
+  similarityThreshold  Float    @default(0.4)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
   @@index([shop])
 }
 

@@ -235,3 +235,4 @@ The simplified dashboard provides **essential visual search analytics** with:
 
 The simplified approach focuses on what matters most to merchants while maintaining excellent performance and reliability.
 
+

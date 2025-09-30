@@ -14,6 +14,8 @@ const PRODUCTS_QUERY = `
           title
           description
           tags
+          availableForSale
+          totalInventory
           priceRangeV2 {
             minVariantPrice {
               amount
@@ -201,6 +203,8 @@ async function syncProductsBackground(shop, admin) {
           description: product.description || null,
           tags: product.tags.join(",") || null,
           price: product.priceRangeV2?.minVariantPrice?.amount || null,
+          availableForSale: product.availableForSale ?? true,
+          totalInventory: product.totalInventory ?? null,
         },
         create: {
           shopifyProductId,
@@ -210,6 +214,8 @@ async function syncProductsBackground(shop, admin) {
           description: product.description || null,
           tags: product.tags.join(",") || null,
           price: product.priceRangeV2?.minVariantPrice?.amount || null,
+          availableForSale: product.availableForSale ?? true,
+          totalInventory: product.totalInventory ?? null,
         },
       });
 

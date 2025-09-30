@@ -231,3 +231,4 @@ class AnalyticsTracker {
 
 // Export for use in other scripts
 window.AnalyticsTracker = AnalyticsTracker;
+

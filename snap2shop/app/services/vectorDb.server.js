@@ -75,8 +75,9 @@ class VectorDatabaseService {
     }
   }
 
-  async searchSimilar(shop, queryEmbedding, topK = 10, threshold = 0.0) {
+  async searchSimilar(shop, queryEmbedding, topK = 10, threshold = 0.0, options = {}) {
     try {
+      const { hideOutOfStock = false } = options;
       // Get all embeddings for the shop
       const allEmbeddings = await this.getAllEmbeddingsForShop(shop);
       
@@ -159,9 +160,34 @@ class VectorDatabaseService {
       }
 
       // Filter by threshold and sort by similarity
-      const filtered = similarities
+      let filtered = similarities
         .filter(item => item.similarity != null && item.similarity >= threshold)
         .sort((a, b) => b.similarity - a.similarity);
+
+      if (hideOutOfStock) {
+        const beforeCount = filtered.length;
+        filtered = filtered.filter((item) => {
+          const product = item.product || item.image?.product;
+          if (!product) return true;
+
+          const available = product.availableForSale !== false;
+          const inventory = typeof product.totalInventory === "number" ? product.totalInventory : null;
+
+          if (!available) {
+            return false;
+          }
+
+          if (inventory !== null) {
+            return inventory > 0;
+          }
+
+          return true;
+        });
+
+        if (beforeCount !== filtered.length) {
+          console.log(`🔍 Hide out-of-stock enabled: filtered ${beforeCount - filtered.length} items`);
+        }
+      }
 
       console.log(`🔍 After filtering (threshold=${threshold}): ${filtered.length}/${similarities.length} items`);
       console.log('🔍 Top 3 filtered similarities:');
@@ -169,11 +195,61 @@ class VectorDatabaseService {
         console.log(`   ${i + 1}. ${item.similarity != null ? item.similarity.toFixed(4) : 'null'} - ${item.product?.title?.substring(0, 30)}`);
       });
 
+      // Smart fallback logic when threshold filters out all results
+      if (filtered.length === 0 && threshold > 0.1) {
+        console.log(`🔄 No results found with threshold ${threshold}, trying progressive fallback...`);
+
+        // Try with half the threshold
+        const halfThreshold = threshold / 2;
+        const halfFiltered = similarities
+          .filter(item => item.similarity != null && item.similarity >= halfThreshold)
+          .sort((a, b) => b.similarity - a.similarity);
+
+        if (halfFiltered.length > 0) {
+          console.log(`✅ Fallback successful: found ${halfFiltered.length} results with threshold ${halfThreshold.toFixed(2)}`);
+          filtered = hideOutOfStock ? this.applyOutOfStockFilter(halfFiltered) : halfFiltered;
+          return filtered.slice(0, topK);
+        }
+
+        // Try with very permissive threshold (0.1)
+        const permissiveFiltered = similarities
+          .filter(item => item.similarity != null && item.similarity >= 0.1)
+          .sort((a, b) => b.similarity - a.similarity);
+
+        if (permissiveFiltered.length > 0) {
+          console.log(`✅ Permissive fallback successful: found ${permissiveFiltered.length} results with threshold 0.1`);
+          filtered = hideOutOfStock ? this.applyOutOfStockFilter(permissiveFiltered) : permissiveFiltered;
+          return filtered.slice(0, topK);
+        }
+
+        console.log('⚠️ No results found even with permissive fallback');
+      }
+
       return filtered.slice(0, topK);
     } catch (error) {
       console.error('Error searching similar embeddings:', error);
       throw error;
     }
+  }
+
+  applyOutOfStockFilter(items) {
+    return items.filter((item) => {
+      const product = item.product || item.image?.product;
+      if (!product) return true;
+
+      const available = product.availableForSale !== false;
+      const inventory = typeof product.totalInventory === "number" ? product.totalInventory : null;
+
+      if (!available) {
+        return false;
+      }
+
+      if (inventory !== null) {
+        return inventory > 0;
+      }
+
+      return true;
+    });
   }
 
   calculateCosineSimilarity(vec1, vec2) {

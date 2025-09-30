@@ -5,6 +5,7 @@ import db from "../db.server";
 import clipInference from "../services/clipInference.server";
 import vectorDb from "../services/vectorDb.server";
 import analyticsAggregation from "../services/analyticsAggregation.server";
+import { getVisualSearchSettings } from "../services/visualSearchSettings.server";
 
 export const action = async ({ request, params }) => {
   console.log('🔍 App proxy request received');
@@ -261,16 +262,23 @@ async function handleImageSearch(request) {
       );
     }
 
+    // Load visual search settings for this shop
+    const settings = await getVisualSearchSettings(shop);
+    console.log('🔧 Visual search settings:', settings);
+
     // Search for similar embeddings in vector database
     console.log('🔍 Searching for similar embeddings...');
     console.log('Query embedding dimensions:', queryEmbedding.embedding.length);
     console.log('Shop for search:', shop);
-    
+
     const similarEmbeddings = await vectorDb.searchSimilar(
       shop,
       queryEmbedding.embedding,
       maxResults + 5, // Get a few extra in case some products are unavailable
-      0.0 // Very low threshold to get more results
+      settings.similarityThreshold,
+      {
+        hideOutOfStock: settings.hideOutOfStock,
+      }
     );
 
     console.log(`Found ${similarEmbeddings.length} similar embeddings`);
@@ -337,8 +345,41 @@ async function handleImageSearch(request) {
 
     console.log(`Found ${results.length} similar products for shop: ${shop}`);
 
+    // Track analytics for proxy search
+    try {
+      const searchId = `proxy_search_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+      await db.visualSearchEvent.create({
+        data: {
+          shop,
+          sessionId: `proxy_session_${Date.now()}`,
+          eventType: 'image_search',
+          searchId,
+          queryData: {
+            fileSize: imageFile?.size || 0,
+            fileType: imageFile?.type || 'proxy_upload',
+            resultCount: results.length,
+            maxResults,
+            similarityThreshold: settings.similarityThreshold,
+            hideOutOfStock: settings.hideOutOfStock,
+            source: 'app_proxy'
+          },
+          results: results.map((r, index) => ({
+            productId: r.id,
+            similarity: r.similarity,
+            position: index + 1
+          })),
+          userAgent: request.headers.get("user-agent"),
+          ipAddress: analyticsAggregation.getClientIP(request),
+        }
+      });
+      console.log('✅ Analytics tracked for proxy search');
+    } catch (analyticsError) {
+      console.error('❌ Proxy analytics tracking failed:', analyticsError);
+      // Don't fail the search if analytics fails
+    }
+
     return json(
-      { 
+      {
         results,
         query_embedding_model: queryEmbedding.modelName
       },

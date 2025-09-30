@@ -4,6 +4,7 @@ import clipInference from "../services/clipInference.server";
 import vectorDb from "../services/vectorDb.server";
 import imageProcessing from "../services/imageProcessing.server";
 import db from "../db.server.js";
+import { getVisualSearchSettings } from "../services/visualSearchSettings.server.js";
 
 export const action = async ({ request }) => {
   if (request.method !== "POST") {
@@ -18,7 +19,8 @@ export const action = async ({ request }) => {
     const imageFile = formData.get("image");
     const imageUrl = formData.get("imageUrl");
     const topK = parseInt(formData.get("topK") || "10");
-    const threshold = parseFloat(formData.get("threshold") || "0.5");
+    // Remove threshold from request - we'll use settings instead
+    // const threshold = parseFloat(formData.get("threshold") || "0.5");
 
     let queryEmbedding;
     let imageMetadata = null;
@@ -65,12 +67,21 @@ export const action = async ({ request }) => {
       }, { status: 400 });
     }
 
-    // Search for similar images
+    // Load settings and use the similarity threshold from settings
+    const settings = await getVisualSearchSettings(shop);
+    const threshold = settings.similarityThreshold;
+    
+    console.log(`🔍 Using similarity threshold from settings: ${threshold}`);
+
+    // Search for similar images using settings threshold
     const similarImages = await vectorDb.searchSimilar(
-      queryEmbedding, 
-      shop, 
-      topK, 
-      threshold
+      shop,
+      queryEmbedding,
+      topK,
+      threshold, // Use settings threshold instead of request parameter
+      {
+        hideOutOfStock: settings.hideOutOfStock,
+      }
     );
 
     // Format results
@@ -114,7 +125,9 @@ export const action = async ({ request }) => {
             fileType: imageFile?.type || 'image/url',
             resultCount: results.length,
             topK,
-            threshold
+            threshold: threshold, // Use settings threshold
+            similarityThreshold: settings.similarityThreshold,
+            hideOutOfStock: settings.hideOutOfStock
           },
           results: results.map((r, index) => ({
             productId: r.productId,
@@ -126,7 +139,7 @@ export const action = async ({ request }) => {
         }
       });
       
-      console.log(`✅ Analytics tracked: Search event created for shop ${shop}`);
+      console.log(`✅ Analytics tracked: Search event created for shop ${shop} with threshold ${threshold}`);
     } catch (analyticsError) {
       console.error('❌ Analytics tracking failed:', analyticsError);
       // Don't fail the search if analytics fails
@@ -139,7 +152,12 @@ export const action = async ({ request }) => {
       metadata: {
         queryImage: imageMetadata,
         totalResults: results.length,
-        searchParams: { topK, threshold },
+        searchParams: { 
+          topK, 
+          threshold: threshold, // Use settings threshold
+          similarityThreshold: settings.similarityThreshold,
+          hideOutOfStock: settings.hideOutOfStock
+        },
         stats,
       },
     });
@@ -183,7 +201,8 @@ export const loader = async ({ request }) => {
   const formData = new FormData();
   formData.append('imageUrl', imageUrl);
   formData.append('topK', url.searchParams.get('topK') || '10');
-  formData.append('threshold', url.searchParams.get('threshold') || '0.5');
+  // Remove threshold parameter - will use settings instead
+  // formData.append('threshold', url.searchParams.get('threshold') || '0.5');
 
   // Create a new request with POST method and form data
   const newRequest = new Request(request.url, {

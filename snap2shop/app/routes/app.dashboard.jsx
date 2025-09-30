@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useLoaderData, useNavigate } from "@remix-run/react";
 import { json } from "@remix-run/node";
 import {
@@ -16,8 +16,13 @@ import {
 } from "@shopify/polaris";
 import { TitleBar } from "@shopify/app-bridge-react";
 import { InfoIcon } from "@shopify/polaris-icons";
+import { LineChart, PolarisVizProvider } from "@shopify/polaris-viz";
+import "@shopify/polaris-viz/build/esm/styles.css";
 import { authenticate } from "../shopify.server";
-import db from "../db.server.js";
+import {
+  resolveDashboardShop,
+  getDashboardMetrics,
+} from "../services/dashboardAnalytics.server.js";
 
 export const loader = async ({ request }) => {
   const { session } = await authenticate.admin(request);
@@ -26,59 +31,22 @@ export const loader = async ({ request }) => {
   try {
     const url = new URL(request.url);
     const timeframe = url.searchParams.get('timeframe') || 'last_month';
-    
-    // Check if we have data for the authenticated shop, if not use the database shop
-    const existingShops = await db.visualSearchEvent.findMany({
-      select: { shop: true },
-      distinct: ['shop'],
-      take: 5
-    });
-    
-    const dbShops = existingShops.map(s => s.shop);
-    console.log(`🔍 Available shops in database:`, dbShops);
-    console.log(`🔍 Authenticated shop: ${shop}`);
-    
-    // If authenticated shop has no data, use the first available shop
-    if (!dbShops.includes(shop) && dbShops.length > 0) {
-      shop = dbShops[0];
-      console.log(`⚠️ Using fallback shop: ${shop}`);
+
+    const { shop: resolvedShop, availableShops } = await resolveDashboardShop(shop);
+    if (resolvedShop !== shop) {
+      console.log(`⚠️ Using fallback shop: ${resolvedShop}`);
     }
-    
-    // Calculate date range
-    const { startDate, endDate } = getDateRange(timeframe);
-    
-    // Get analytics data directly from database
-    const imageSearchVolume = await db.visualSearchEvent.count({
-      where: {
-        shop,
-        eventType: 'image_search',
-        createdAt: { gte: startDate, lte: endDate }
-      }
+
+    const metrics = await getDashboardMetrics(resolvedShop, timeframe);
+    console.log(`📊 Dashboard data for ${resolvedShop}:`, metrics.summary);
+
+    return json({
+      analytics: metrics.summary,
+      dailyMetrics: metrics.dailyMetrics,
+      timeframe: metrics.timeframe,
+      shop: resolvedShop,
+      availableShops,
     });
-    
-    const imageSearchClicks = await db.searchResultClick.count({
-      where: {
-        shop,
-        clickType: 'search_result',
-        createdAt: { gte: startDate, lte: endDate }
-      }
-    });
-    
-    const clickThroughRate = imageSearchVolume > 0 
-      ? (imageSearchClicks / imageSearchVolume) * 100 
-      : 0;
-    
-    const analytics = {
-      imageSearchVolume,
-      imageSearchClicks,
-      clickThroughRate: Math.round(clickThroughRate * 10) / 10
-    };
-    
-    console.log(`📊 Dashboard data for ${shop}:`, analytics);
-    console.log(`🔍 Shop comparison - Database: snap2shopdemo.myshopify.com, Authenticated: ${shop}`);
-    console.log(`📅 Date range: ${startDate.toISOString()} to ${endDate.toISOString()}`);
-    
-    return json({ analytics, timeframe });
   } catch (error) {
     console.error('Error loading dashboard:', error);
     return json({ 
@@ -87,39 +55,11 @@ export const loader = async ({ request }) => {
         imageSearchClicks: 0, 
         clickThroughRate: 0 
       },
+      dailyMetrics: [],
       timeframe: 'last_month'
     });
   }
 };
-
-function getDateRange(timeframe) {
-  const now = new Date();
-  let startDate, endDate;
-
-  switch (timeframe) {
-    case 'last_7_days':
-      startDate = new Date(now);
-      startDate.setDate(startDate.getDate() - 7);
-      break;
-    case 'last_month':
-      startDate = new Date(now);
-      startDate.setMonth(startDate.getMonth() - 1);
-      break;
-    case 'last_3_months':
-      startDate = new Date(now);
-      startDate.setMonth(startDate.getMonth() - 3);
-      break;
-    default:
-      startDate = new Date(now);
-      startDate.setMonth(startDate.getMonth() - 1);
-  }
-
-  endDate = new Date(now);
-  startDate.setHours(0, 0, 0, 0);
-  endDate.setHours(23, 59, 59, 999);
-
-  return { startDate, endDate };
-}
 
 const TIMEFRAME_OPTIONS = [
   { label: "Last 7 days", value: "last_7_days" },
@@ -128,10 +68,15 @@ const TIMEFRAME_OPTIONS = [
 ];
 
 export default function Dashboard() {
-  const { analytics: initialAnalytics, timeframe: initialTimeframe } = useLoaderData();
+  const {
+    analytics: initialAnalytics,
+    dailyMetrics: initialDailyMetrics,
+    timeframe: initialTimeframe,
+  } = useLoaderData();
   const navigate = useNavigate();
   const [timeframe, setTimeframe] = useState(initialTimeframe);
   const [analytics, setAnalytics] = useState(initialAnalytics);
+  const [dailyMetrics, setDailyMetrics] = useState(initialDailyMetrics);
   const [loading, setLoading] = useState(false);
 
   // Function to fetch analytics data
@@ -144,7 +89,12 @@ export default function Dashboard() {
       
       if (response.ok) {
         const data = await response.json();
-        setAnalytics(data);
+        setAnalytics({
+          imageSearchVolume: data.imageSearchVolume,
+          imageSearchClicks: data.imageSearchClicks,
+          clickThroughRate: data.clickThroughRate,
+        });
+        setDailyMetrics(data.dailyMetrics || []);
         console.log('✅ Analytics updated:', data);
       } else {
         const errorText = await response.text();
@@ -166,11 +116,17 @@ export default function Dashboard() {
     return () => clearInterval(interval); // Cleanup on unmount
   }, [timeframe, fetchAnalytics]);
 
+  useEffect(() => {
+    setAnalytics(initialAnalytics);
+    setDailyMetrics(initialDailyMetrics);
+  }, [initialAnalytics, initialDailyMetrics]);
+
   const handleTimeframeChange = (newTimeframe) => {
     setTimeframe(newTimeframe);
     const url = new URL(window.location);
     url.searchParams.set('timeframe', newTimeframe);
     navigate(url.pathname + url.search);
+    fetchAnalytics(newTimeframe);
   };
 
   return (
@@ -198,87 +154,159 @@ export default function Dashboard() {
         </InlineStack>
 
         <Layout>
-          {/* Image Search Volume */}
-          <Layout.Section variant="oneThird">
-            <Card>
-              <BlockStack gap="400">
-                <InlineStack gap="200" blockAlign="center">
-                  <Text as="h2" variant="headingMd">Image Search Volume</Text>
-                  <Tooltip content="Total number of image searches performed by customers">
-                    <Icon source={InfoIcon} tone="subdued" />
-                  </Tooltip>
-                </InlineStack>
-                <Text as="p" variant="heading3xl">
-                  {analytics.imageSearchVolume.toLocaleString()}
-                </Text>
-                <Text as="span" variant="bodyMd" tone="subdued">Searches</Text>
-              </BlockStack>
-            </Card>
-          </Layout.Section>
-
-          {/* Image Search Clicks */}
-          <Layout.Section variant="oneThird">
-            <Card>
-              <BlockStack gap="400">
-                <InlineStack gap="200" blockAlign="center">
-                  <Text as="h2" variant="headingMd">Image Search Clicks</Text>
-                  <Tooltip content="Total number of clicks on search results">
-                    <Icon source={InfoIcon} tone="subdued" />
-                  </Tooltip>
-                </InlineStack>
-                <Text as="p" variant="heading3xl">
-                  {analytics.imageSearchClicks.toLocaleString()}
-                </Text>
-                <Text as="span" variant="bodyMd" tone="subdued">Clicks</Text>
-              </BlockStack>
-            </Card>
-          </Layout.Section>
-
-          {/* Click-Through Rate */}
-          <Layout.Section variant="oneThird">
-            <Card>
-              <BlockStack gap="400">
-                <InlineStack gap="200" blockAlign="center">
-                  <Text as="h2" variant="headingMd">Click-Through Rate</Text>
-                  <Tooltip content="Percentage of searches that result in clicks">
-                    <Icon source={InfoIcon} tone="subdued" />
-                  </Tooltip>
-                </InlineStack>
-                <Text as="p" variant="heading3xl">
-                  {analytics.clickThroughRate.toFixed(1)}%
-                </Text>
-                <Text as="span" variant="bodyMd" tone="subdued">CTR</Text>
-              </BlockStack>
-            </Card>
-          </Layout.Section>
-        </Layout>
-
-        {/* Summary Card */}
-        <Layout>
           <Layout.Section>
             <Card>
               <BlockStack gap="400">
-                <Text as="h3" variant="headingMd">Performance Summary</Text>
-                <Text as="p" variant="bodyMd">
-                  In the selected timeframe, customers performed <strong>{analytics.imageSearchVolume.toLocaleString()}</strong> image searches, 
-                  resulting in <strong>{analytics.imageSearchClicks.toLocaleString()}</strong> clicks on search results. 
-                  This represents a <strong>{analytics.clickThroughRate.toFixed(1)}%</strong> click-through rate.
-                </Text>
-                {analytics.clickThroughRate > 0 && (
-                  <Text as="p" variant="bodySm" tone="subdued">
-                    {analytics.clickThroughRate >= 20 
-                      ? "Excellent performance! Your visual search is highly engaging."
-                      : analytics.clickThroughRate >= 10
-                      ? "Good performance. Consider optimizing search results for better engagement."
-                      : "Consider improving search result quality or user experience to increase engagement."
-                    }
-                  </Text>
-                )}
+                <InlineStack gap="200" blockAlign="center">
+                  <Text as="h2" variant="headingMd">Daily Performance</Text>
+                  <Tooltip content="Image search volume and clicks per day within the selected timeframe">
+                    <Icon source={InfoIcon} tone="subdued" />
+                  </Tooltip>
+                </InlineStack>
+                <PerformanceChart
+                  dailyMetrics={dailyMetrics}
+                  analytics={analytics}
+                  loading={loading}
+                  timeframe={timeframe}
+                />
               </BlockStack>
             </Card>
           </Layout.Section>
         </Layout>
       </BlockStack>
     </Page>
+  );
+}
+
+function PerformanceChart({ dailyMetrics, analytics, loading, timeframe }) {
+  const totals = analytics || {
+    imageSearchVolume: 0,
+    imageSearchClicks: 0,
+    clickThroughRate: 0,
+  };
+
+  const hasData = Array.isArray(dailyMetrics) && dailyMetrics.length > 0;
+  const [isClient, setIsClient] = useState(false);
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
+
+  const chartData = useMemo(() => {
+    if (!hasData) return [];
+
+    const dateFormatter = new Intl.DateTimeFormat('en-US', {
+      month: 'short',
+      day: 'numeric',
+    });
+
+    const labelFor = (dateString) => {
+      try {
+        return dateFormatter.format(new Date(`${dateString}T00:00:00Z`));
+      } catch (error) {
+        return dateString;
+      }
+    };
+
+    const searchesSeries = dailyMetrics.map(({ date, searches }) => ({
+      key: labelFor(date),
+      value: Number(searches ?? 0),
+    }));
+
+    const clicksSeries = dailyMetrics.map(({ date, clicks }) => ({
+      key: labelFor(date),
+      value: Number(clicks ?? 0),
+    }));
+
+    return [
+      {
+        name: 'Searches',
+        data: searchesSeries,
+      },
+      {
+        name: 'Clicks',
+        data: clicksSeries,
+      },
+    ];
+  }, [dailyMetrics, hasData]);
+
+  if (!hasData) {
+    return (
+      <Text tone="subdued" variant="bodyMd">
+        No activity recorded for this timeframe yet.
+      </Text>
+    );
+  }
+
+  return (
+    <BlockStack gap="400">
+      <InlineStack gap="400" wrap align="start">
+        <SummaryMetric label="Total searches" value={totals.imageSearchVolume} />
+        <SummaryMetric label="Total clicks" value={totals.imageSearchClicks} />
+        <SummaryMetric
+          label="Average CTR"
+          value={totals.clickThroughRate}
+          suffix="%"
+          format={(val) => Number(val ?? 0).toFixed(1)}
+        />
+        {loading && (
+          <InlineStack gap="200" blockAlign="center">
+            <Spinner size="small" />
+            <Text tone="subdued" variant="bodySm">
+              Updating…
+            </Text>
+          </InlineStack>
+        )}
+      </InlineStack>
+
+      <div style={{ height: 320 }}>
+        {isClient ? (
+          <PolarisVizProvider animated>
+            <LineChart
+              data={chartData}
+              theme="Default"
+              isAnimated
+              xAxisOptions={{ labelFormatter: (value) => value }}
+              yAxisOptions={{
+                labelFormatter: (value) => Number(value).toLocaleString(),
+              }}
+              showLegend
+              legendPosition="bottom"
+            />
+          </PolarisVizProvider>
+        ) : (
+          <BlockStack gap="150" align="center">
+            <Spinner size="small" />
+            <Text tone="subdued" variant="bodySm">
+              Preparing chart…
+            </Text>
+          </BlockStack>
+        )}
+      </div>
+
+      <Text tone="subdued" variant="bodySm">
+        Customers performed {totals.imageSearchVolume.toLocaleString()} image searches and
+        clicked {totals.imageSearchClicks.toLocaleString()} results in this period. The
+        overall click-through rate was {totals.clickThroughRate.toFixed(1)}%.
+      </Text>
+    </BlockStack>
+  );
+}
+
+function SummaryMetric({ label, value, suffix, format }) {
+  const formattedValue = format
+    ? format(value)
+    : Number(value ?? 0).toLocaleString();
+
+  return (
+    <BlockStack gap="150">
+      <Text tone="subdued" variant="bodySm">
+        {label}
+      </Text>
+      <Text as="span" variant="headingLg">
+        {formattedValue}
+        {suffix ? suffix : null}
+      </Text>
+    </BlockStack>
   );
 }

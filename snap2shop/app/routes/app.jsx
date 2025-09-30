@@ -20,10 +20,10 @@ export default function App() {
     <AppProvider isEmbeddedApp apiKey={apiKey}>
       <NavMenu>
         <Link to="/app" rel="home">
-          Home
+          Snap2Shop
         </Link>
-        <Link to="/app/visual-search">Visual Search</Link>
-        <Link to="/app/dashboard">Dashboard</Link>
+        <Link to="/app/settings">Settings</Link>
+        <Link to="/app/help">Help</Link>
       </NavMenu>
       <Outlet />
     </AppProvider>
