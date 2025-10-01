@@ -85,14 +85,28 @@
     "@graphql-codegen/client-preset": "4.7.0",
     "@graphql-codegen/typescript-operations": "4.5.0",
     "minimatch": "9.0.5",
-    "vite": "^6.2.2"
+    "vite": "^6.2.2",
+    "d3-scale": "3.3.0",
+    "d3-array": "2.12.1",
+    "d3-interpolate": "2.0.1",
+    "d3-color": "2.0.0",
+    "d3-format": "2.0.0",
+    "d3-time": "2.1.1",
+    "d3-time-format": "3.0.0"
   },
   "overrides": {
     "@graphql-tools/url-loader": "8.0.16",
     "@graphql-codegen/client-preset": "4.7.0",
     "@graphql-codegen/typescript-operations": "4.5.0",
     "minimatch": "9.0.5",
-    "vite": "^6.2.2"
+    "vite": "^6.2.2",
+    "d3-scale": "3.3.0",
+    "d3-array": "2.12.1",
+    "d3-interpolate": "2.0.1",
+    "d3-color": "2.0.0",
+    "d3-format": "2.0.0",
+    "d3-time": "2.1.1",
+    "d3-time-format": "3.0.0"
   },
   "author": "boli"
 }
