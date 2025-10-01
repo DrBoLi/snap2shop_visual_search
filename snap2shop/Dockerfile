@@ -17,6 +17,8 @@ WORKDIR /app
 ENV NODE_ENV=production
 
 COPY package.json package-lock.json* ./
+# Prisma client is generated during npm install via postinstall, so ensure schema exists first
+COPY prisma ./prisma
 
 # Install ALL dependencies first (needed for build)
 RUN npm ci && npm cache clean --force
@@ -33,4 +35,3 @@ RUN npm run build
 RUN npm prune --production
 
 CMD ["npm", "run", "docker-start"]
-
