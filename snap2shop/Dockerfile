@@ -18,12 +18,16 @@ ENV NODE_ENV=production
 
 COPY package.json package-lock.json* ./
 
-RUN npm ci --omit=dev && npm cache clean --force
-RUN npm remove @shopify/cli
+# Install ALL dependencies first (needed for build)
+RUN npm ci && npm cache clean --force
 
 COPY . .
 
+# Build the app
 RUN npm run build
+
+# Remove dev dependencies after build to reduce image size
+RUN npm prune --production
 
 CMD ["npm", "run", "docker-start"]
 
