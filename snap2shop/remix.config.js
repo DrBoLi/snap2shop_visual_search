@@ -15,6 +15,10 @@ module.exports = {
   ignoredRouteFiles: ["**/.*"],
   appDirectory: "app",
   serverModuleFormat: "cjs",
+  serverDependenciesToBundle: [
+    /@shopify\/polaris-viz.*/,
+    /d3-.*/
+  ],
   dev: { port: process.env.HMR_SERVER_PORT || 8002 },
   future: {},
 };
