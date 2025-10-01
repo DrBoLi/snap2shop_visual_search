@@ -94,8 +94,5 @@
     "minimatch": "9.0.5",
     "vite": "^6.2.2"
   },
-  "optionalDependencies": {
-    "@rollup/rollup-linux-x64-gnu": "4.50.1"
-  },
   "author": "boli"
 }
