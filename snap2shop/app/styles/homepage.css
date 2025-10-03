@@ -308,6 +308,21 @@
   color: var(--color-blue-600);
 }
 
+.step-badge-green {
+  background: linear-gradient(to right, #dcfce7, #bbf7d0);
+  color: #16a34a;
+}
+
+.step-badge-orange {
+  background: linear-gradient(to right, #fed7aa, #fdba74);
+  color: #ea580c;
+}
+
+.step-badge-purple {
+  background: linear-gradient(to right, var(--color-purple-100), #e9d5ff);
+  color: var(--color-purple-600);
+}
+
 /* Instruction Box */
 .instruction-box {
   background: linear-gradient(135deg, var(--color-blue-50), var(--color-purple-50));

@@ -159,6 +159,9 @@
           console.debug(...args);
         }
       };
+      this.latestPreviewDataUrl = null;
+      this.cameraButtons = new Set();
+      this.rescanTimeout = null;
       
       // Multiple selector strategy for theme compatibility
       this.searchSelectors = [
@@ -197,6 +200,9 @@
       
       this.debug('[Visual Search] Initializing search bar integration');
 
+      // Clean up any existing camera icons first
+      this.cleanupExistingCameraIcons();
+
       // Refresh environment info in case host/context changed after load
       this.environmentInfo = VisualSearchEnv.getInfo(this.config);
       this.shopDomain = this.environmentInfo.shopDomain || VisualSearchEnv.detectShopDomain(this.config);
@@ -224,6 +230,8 @@
       // Special handling for predictive search (Dawn theme and others)
       this.setupPredictiveSearchHandling();
       
+      this.hydrateSearchPageFromSession();
+
       this.initialized = true;
     }
 
@@ -237,7 +245,10 @@
         inputs.forEach(input => {
           // Avoid duplicates and ensure it's visible
           if (!this.searchInputs.includes(input) && this.isVisible(input)) {
-            this.searchInputs.push(input);
+            // Additional validation to ensure this is actually a search input
+            if (this.isValidSearchInput(input)) {
+              this.searchInputs.push(input);
+            }
           }
         });
       });
@@ -253,7 +264,14 @@
         }
       });
 
-      this.debug(`[Visual Search] Found ${this.searchInputs.length} search inputs`);
+      this.debug(`[Visual Search] Found ${this.searchInputs.length} search inputs:`, this.searchInputs.map(input => ({
+        placeholder: input.placeholder,
+        name: input.name,
+        id: input.id,
+        className: input.className,
+        width: input.offsetWidth,
+        top: input.getBoundingClientRect().top
+      })));
     }
 
     looksLikeSearchInput(input) {
@@ -276,15 +294,88 @@
       
       if (hasSearchKeyword) return true;
       
-      // Check if input is in a search-related container
-      const container = input.closest('[class*="search"], [id*="search"], form[action*="/search"]');
-      if (container) return true;
+      // Check if it's a prominent search input (main search bar)
+      const isMainSearchInput = input.offsetWidth > 300 && input.getBoundingClientRect().top < 200;
+      if (isMainSearchInput) return true;
       
-      // Check if there's a search icon nearby
-      const nearbySearchIcon = this.findSearchIcon(input);
-      if (nearbySearchIcon) return true;
+      // Check if input is in a search-related container (but exclude filter/result areas)
+      const container = input.closest('[class*="search"], [id*="search"], form[action*="/search"]');
+      if (container) {
+        // Exclude filter areas, result areas, and other non-search containers
+        const containerClass = container.className.toLowerCase();
+        const containerId = (container.id || '').toLowerCase();
+        
+        // Skip if it's a filter, result, or other non-search area
+        const excludeKeywords = ['filter', 'result', 'sort', 'availability', 'price', 'grid', 'list'];
+        const shouldExclude = excludeKeywords.some(keyword => 
+          containerClass.includes(keyword) || containerId.includes(keyword)
+        );
+        
+        if (shouldExclude) return false;
+        
+        // Only include if it's actually a search input area
+        const searchAreaKeywords = ['search-bar', 'search-input', 'search-form', 'header__search', 'predictive-search'];
+        const isSearchArea = searchAreaKeywords.some(keyword => 
+          containerClass.includes(keyword) || containerId.includes(keyword)
+        );
+        
+        if (isSearchArea) return true;
+        
+        // For generic search containers, check if there's a search icon nearby
+        const nearbySearchIcon = this.findSearchIcon(input);
+        if (nearbySearchIcon) return true;
+      }
       
       return false;
+    }
+
+    isValidSearchInput(input) {
+      // First, check if this input is in a filter, result, or other non-search area
+      const container = input.closest('*');
+      if (container) {
+        const containerClass = container.className.toLowerCase();
+        const containerId = (container.id || '').toLowerCase();
+        
+        // Exclude specific filter areas, result areas, and other non-search containers
+        const excludeKeywords = ['filter', 'result', 'sort', 'availability', 'price', 'grid', 'list', 'facet'];
+        const shouldExclude = excludeKeywords.some(keyword => 
+          containerClass.includes(keyword) || containerId.includes(keyword)
+        );
+        
+        if (shouldExclude) return false;
+        
+        // Check if it's in a search results page filter area
+        const isInFilterArea = input.closest('.search-filters, .filters, .filter-bar, .search-results-header');
+        if (isInFilterArea) return false;
+        
+        // Check if it's near filter/sort controls (but be more specific)
+        const nearbyElements = input.parentElement?.children || [];
+        const hasFilterElements = Array.from(nearbyElements).some(el => {
+          const text = el.textContent?.toLowerCase() || '';
+          // Only exclude if the text specifically mentions filter/sort AND the input is very close
+          return (text.includes('filter:') || text.includes('sort by:') || text.includes('availability')) && 
+                 el.getBoundingClientRect().left - input.getBoundingClientRect().right < 50;
+        });
+        
+        if (hasFilterElements) return false;
+      }
+      
+      // Check input attributes to ensure it's actually for search
+      const placeholder = (input.placeholder || '').toLowerCase();
+      const name = (input.name || '').toLowerCase();
+      const id = (input.id || '').toLowerCase();
+      
+      // Be more permissive for main search bars
+      const hasSearchAttributes = ['search', 'query', 'q'].some(keyword =>
+        placeholder.includes(keyword) || name.includes(keyword) || id.includes(keyword)
+      );
+      
+      const isInSearchForm = input.closest('form[action*="/search"]');
+      
+      // If it's a main search input (prominent, wide, at top of page), allow it
+      const isMainSearchInput = input.offsetWidth > 300 && input.getBoundingClientRect().top < 200;
+      
+      return hasSearchAttributes || isInSearchForm || isMainSearchInput;
     }
 
     isVisible(element) {
@@ -299,13 +390,26 @@
     }
 
     injectCameraIcons() {
+      // First, clean up any existing camera icons to prevent duplicates
+      this.cleanupExistingCameraIcons();
+      
       this.searchInputs.forEach(input => {
         // Check if camera icon already exists
         if (input.dataset.visualSearchEnabled) return;
-        
+
+        const canonicalId = input.dataset.visualSearchInputId || input.getAttribute('id') || input.getAttribute('name');
+        if (canonicalId && this.processedSearchInputIds && this.processedSearchInputIds.has(canonicalId)) {
+          return;
+        }
+
+        // Check if a camera button already exists in this input's container
+        if (this.hasExistingCameraButton(input)) {
+          return;
+        }
+
         // Create camera icon button
         const cameraButton = this.createCameraButton();
-        
+
         // Find the search container and insertion point
         const insertionPoint = this.findOptimalInsertionPoint(input);
         
@@ -325,10 +429,49 @@
           // Fallback: create wrapper
           this.createInputWrapper(input, cameraButton);
         }
-        
+
         // Mark input as processed
         input.dataset.visualSearchEnabled = 'true';
+        if (!this.processedSearchInputIds) {
+          this.processedSearchInputIds = new Set();
+        }
+        if (canonicalId) {
+          this.processedSearchInputIds.add(canonicalId);
+        }
+
+        if (this.latestPreviewDataUrl) {
+          this.decorateCameraButtonWithPreview(cameraButton, this.latestPreviewDataUrl);
+        }
       });
+    }
+
+    cleanupExistingCameraIcons() {
+      // Remove ALL existing camera buttons first
+      const existingButtons = document.querySelectorAll('.visual-search-camera-btn');
+      existingButtons.forEach(button => {
+        button.remove();
+      });
+      
+      // Reset all processed inputs
+      const processedInputs = document.querySelectorAll('[data-visual-search-enabled="true"]');
+      processedInputs.forEach(input => {
+        input.removeAttribute('data-visual-search-enabled');
+      });
+      
+      // Reset processed search input IDs
+      if (this.processedSearchInputIds) {
+        this.processedSearchInputIds.clear();
+      }
+      
+      this.debug('[Visual Search] Cleaned up all existing camera icons and reset state');
+    }
+
+    hasExistingCameraButton(input) {
+      const container = input.closest('.search, .header__search, .predictive-search, form, [class*="search"]');
+      if (!container) return false;
+      
+      const existingButton = container.querySelector('.visual-search-camera-btn');
+      return !!existingButton;
     }
 
     findOptimalInsertionPoint(input) {
@@ -513,6 +656,11 @@
           <circle cx="12" cy="13" r="4"/>
         </svg>
       `;
+
+      if (!this.cameraButtons) {
+        this.cameraButtons = new Set();
+      }
+      this.cameraButtons.add(button);
       
       button.addEventListener('click', (e) => {
         e.preventDefault();
@@ -791,6 +939,7 @@
         const reader = new FileReader();
         reader.onload = (e) => {
           previewImg.src = e.target.result;
+          this.latestPreviewDataUrl = e.target.result;
           uploadArea.querySelector('.visual-search-upload-placeholder').style.display = 'none';
           preview.style.display = 'block';
           searchBtn.disabled = false;
@@ -805,6 +954,7 @@
         uploadArea.querySelector('.visual-search-upload-placeholder').style.display = 'flex';
         searchBtn.disabled = true;
         fileInput.value = '';
+        this.latestPreviewDataUrl = null;
       };
     }
 
@@ -886,8 +1036,40 @@
           throw new Error(data.error || 'Search failed');
         }
         
-        // Display results
-        this.displayResults(data.results || []);
+        const previewDataUrl = this.latestPreviewDataUrl || await this.convertBlobToDataUrl(file);
+        const visualSearchId = `vs_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+        const storageKey = `visualSearch:${visualSearchId}`;
+
+        const payload = {
+          id: visualSearchId,
+          searchId: data.searchId,
+          shop: shopDomain,
+          createdAt: Date.now(),
+          preview: previewDataUrl,
+          results: data.results || [],
+          metadata: data.metadata || {},
+        };
+
+        try {
+          sessionStorage.setItem(storageKey, JSON.stringify(payload));
+          sessionStorage.setItem('visualSearch:last', visualSearchId);
+          this.pruneStoredSearchPayloads();
+        } catch (storageError) {
+          console.warn('[Visual Search] Failed to persist session data', storageError);
+        }
+
+        const redirectUrl = new URL('/search', window.location.origin);
+        const baseQuery = (typeof this.config.defaultRedirectQuery === 'string' && this.config.defaultRedirectQuery.trim().length > 0)
+          ? this.config.defaultRedirectQuery
+          : (data.metadata?.searchParams?.keyword || 'visual search');
+        redirectUrl.searchParams.set('q', baseQuery);
+        redirectUrl.searchParams.set('vsid', visualSearchId);
+
+        if (this.modal) {
+          this.closeModal();
+        }
+
+        window.location.assign(redirectUrl.toString());
         
       } catch (error) {
         console.error('[Visual Search] Search error:', error);
@@ -906,6 +1088,238 @@
         }
       } finally {
         this.setLoading(false);
+      }
+    }
+
+    async convertBlobToDataUrl(blob) {
+      if (!blob) return null;
+      return await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (event) => resolve(event.target?.result || null);
+        reader.onerror = () => reject(reader.error || new Error('Failed to convert image'));
+        reader.readAsDataURL(blob);
+      });
+    }
+
+    pruneStoredSearchPayloads(maxEntries = 5) {
+      try {
+        const entries = [];
+        for (let i = 0; i < sessionStorage.length; i += 1) {
+          const key = sessionStorage.key(i);
+          if (key && key.startsWith('visualSearch:')) {
+            const raw = sessionStorage.getItem(key);
+            let createdAt = 0;
+            try {
+              const parsed = JSON.parse(raw);
+              createdAt = parsed?.createdAt || 0;
+            } catch (error) {
+              // ignore parse errors
+            }
+            entries.push({ key, createdAt });
+          }
+        }
+
+        if (entries.length <= maxEntries) {
+          return;
+        }
+
+        entries.sort((a, b) => b.createdAt - a.createdAt);
+        const toRemove = entries.slice(maxEntries);
+        toRemove.forEach((entry) => sessionStorage.removeItem(entry.key));
+      } catch (error) {
+        console.warn('[Visual Search] Unable to prune stored payloads', error);
+      }
+    }
+
+    hydrateSearchPageFromSession() {
+      try {
+        const url = new URL(window.location.href);
+        const vsid = url.searchParams.get('vsid');
+        let payload = null;
+
+        if (vsid) {
+          payload = this.getStoredSearchPayload(vsid);
+        }
+
+        if (!payload) {
+          const lastId = sessionStorage.getItem('visualSearch:last');
+          if (lastId) {
+            payload = this.getStoredSearchPayload(lastId);
+          }
+        }
+
+        if (!payload) {
+          return;
+        }
+
+        this.latestPreviewDataUrl = payload.preview || this.latestPreviewDataUrl;
+        this.applyThumbnailToCameraButtons(payload.preview);
+
+        if (vsid && payload.results && payload.results.length > 0) {
+          this.renderSearchPageResults(payload);
+        }
+      } catch (error) {
+        console.warn('[Visual Search] Unable to hydrate search page from session', error);
+      }
+    }
+
+    getStoredSearchPayload(identifier) {
+      if (!identifier) return null;
+      const storageKey = `visualSearch:${identifier}`;
+      try {
+        const raw = sessionStorage.getItem(storageKey);
+        if (!raw) return null;
+        return JSON.parse(raw);
+      } catch (error) {
+        console.warn('[Visual Search] Failed to parse stored payload', error);
+        return null;
+      }
+    }
+
+    applyThumbnailToCameraButtons(previewDataUrl) {
+      if (!previewDataUrl) return;
+      if (!this.cameraButtons) {
+        this.cameraButtons = new Set();
+      }
+
+      this.cameraButtons.forEach((button) => {
+        this.decorateCameraButtonWithPreview(button, previewDataUrl);
+      });
+    }
+
+    decorateCameraButtonWithPreview(button, previewDataUrl) {
+      if (!button) return;
+      button.classList.add('visual-search-has-preview');
+
+      let thumb = button.querySelector('.visual-search-preview-thumb');
+      if (!thumb) {
+        thumb = document.createElement('span');
+        thumb.className = 'visual-search-preview-thumb';
+        thumb.setAttribute('aria-hidden', 'true');
+        button.appendChild(thumb);
+      }
+
+      thumb.style.backgroundImage = `url(${previewDataUrl})`;
+    }
+
+    renderSearchPageResults(payload) {
+      const main = document.querySelector('main') || document.getElementById('MainContent');
+      if (!main) {
+        console.warn('[Visual Search] Unable to find main content container for results');
+        return;
+      }
+
+      let container = document.querySelector('[data-visual-search-results]');
+      if (!container) {
+        container = document.createElement('section');
+        container.setAttribute('data-visual-search-results', 'true');
+        container.className = 'visual-search-results-page';
+        main.prepend(container);
+      }
+
+      const matchCount = Array.isArray(payload.results) ? payload.results.length : 0;
+      const matchLabel = matchCount === 1 ? '1 match' : `${matchCount} matches`;
+
+      container.innerHTML = `
+        <header class="visual-search-results-header">
+          <div class="visual-search-results-meta">
+            <span class="visual-search-results-chip" style="background-image: url(${payload.preview || ''});"></span>
+            <div>
+              <p class="visual-search-results-subtitle">Visual search</p>
+              <h1 class="visual-search-results-title">Your Image Results</h1>
+              <p class="visual-search-results-count">${matchLabel}</p>
+            </div>
+          </div>
+          <div class="visual-search-results-actions">
+            <button type="button" class="visual-search-results-refine">Refine search</button>
+          </div>
+        </header>
+        <div class="visual-search-results-grid"></div>
+      `;
+
+      const grid = container.querySelector('.visual-search-results-grid');
+      grid.innerHTML = '';
+
+      if (Array.isArray(payload.results) && payload.results.length > 0) {
+        payload.results.forEach((result) => {
+          const item = document.createElement('a');
+          item.className = 'visual-search-result-item';
+          item.href = `/products/${result.handle}`;
+          item.innerHTML = `
+            <img class="visual-search-result-image" src="${result.image_url}" alt="${result.title}" loading="lazy">
+            <div class="visual-search-result-info">
+              <h4 class="visual-search-result-title">${result.title}</h4>
+              ${result.price ? `<p class="visual-search-result-price">${this.formatPrice(result.price)}</p>` : ''}
+              ${typeof result.similarity === 'number' ? `<p class="visual-search-result-match">${Math.round(result.similarity * 100)}% match</p>` : ''}
+            </div>
+          `;
+          grid.appendChild(item);
+        });
+      } else {
+        const emptyState = document.createElement('div');
+        emptyState.className = 'visual-search-no-results';
+        emptyState.innerHTML = `
+          <h2>No visual matches found</h2>
+          <p>Try uploading a different photo or adjusting your filters.</p>
+        `;
+        grid.appendChild(emptyState);
+      }
+
+      const refineButton = container.querySelector('.visual-search-results-refine');
+      if (refineButton) {
+        refineButton.addEventListener('click', (event) => {
+          event.preventDefault();
+          this.openModal();
+        });
+      }
+
+      this.hideDefaultSearchResults(container);
+    }
+
+    hideDefaultSearchResults(container) {
+      const selectors = [
+        '[data-search-results]',
+        '[data-product-grid]',
+        '#ProductGrid',
+        '.product-grid',
+        '.collection',
+        '.search__results',
+        '.grid--view-items',
+        '.search__no-results',
+        '.template-search__results',
+        '.search-empty-state',
+        '.search-results__message'
+      ];
+
+      selectors.forEach((selector) => {
+        document.querySelectorAll(selector).forEach((element) => {
+          if (element.hasAttribute('data-visual-search-results')) return;
+          element.style.display = 'none';
+        });
+      });
+
+      if (container && container.parentElement) {
+        let sibling = container.previousElementSibling;
+        while (sibling) {
+          if (
+            !sibling.hasAttribute('data-visual-search-results') &&
+            !sibling.matches('form, form *, .search__form, .search__form *')
+          ) {
+            sibling.style.display = 'none';
+          }
+          sibling = sibling.previousElementSibling;
+        }
+
+        sibling = container.nextElementSibling;
+        while (sibling) {
+          if (
+            !sibling.hasAttribute('data-visual-search-results') &&
+            !sibling.matches('form, form *, .search__form, .search__form *')
+          ) {
+            sibling.style.display = 'none';
+          }
+          sibling = sibling.nextElementSibling;
+        }
       }
     }
 
@@ -1004,10 +1418,15 @@
     }
 
     formatPrice(price) {
-      const amount = parseFloat(price) / 100;
+      const amount = Number.parseFloat(price);
+      if (!Number.isFinite(amount)) {
+        return '';
+      }
+
+      const currency = this.config.currency || 'USD';
       return new Intl.NumberFormat('en-US', {
         style: 'currency',
-        currency: 'USD'
+        currency
       }).format(amount);
     }
 
@@ -1261,11 +1680,14 @@
         
         if (shouldRescan) {
           this.debug('[Visual Search] DOM changes detected, rescanning for search inputs...');
-          // Use a shorter delay to catch dynamic overlays faster
-          setTimeout(() => {
+          // Debounce the rescan to prevent excessive calls
+          if (this.rescanTimeout) {
+            clearTimeout(this.rescanTimeout);
+          }
+          this.rescanTimeout = setTimeout(() => {
             this.findSearchInputs();
             this.injectCameraIcons();
-          }, 50);
+          }, 100);
         }
       });
       
@@ -1293,11 +1715,14 @@
             (target.type === 'search' || target.type === 'text') &&
             this.looksLikeSearchInput(target)) {
           this.debug('[Visual Search] Search input clicked, scheduling rescan...');
-          // Give the overlay time to appear
-          setTimeout(() => {
+          // Debounce the rescan
+          if (this.rescanTimeout) {
+            clearTimeout(this.rescanTimeout);
+          }
+          this.rescanTimeout = setTimeout(() => {
             this.findSearchInputs();
             this.injectCameraIcons();
-          }, 100);
+          }, 150);
         }
       });
       
@@ -1308,7 +1733,11 @@
             (target.type === 'search' || target.type === 'text') &&
             this.looksLikeSearchInput(target)) {
           this.debug('[Visual Search] Search input focused, scheduling rescan...');
-          setTimeout(() => {
+          // Debounce the rescan
+          if (this.rescanTimeout) {
+            clearTimeout(this.rescanTimeout);
+          }
+          this.rescanTimeout = setTimeout(() => {
             this.findSearchInputs();
             this.injectCameraIcons();
           }, 150);
@@ -1324,10 +1753,14 @@
               if (mutation.type === 'attributes' && 
                   (mutation.attributeName === 'style' || mutation.attributeName === 'class')) {
                 // Re-scan for search inputs when predictive search becomes visible
-                setTimeout(() => {
+                // Debounce the rescan
+                if (this.rescanTimeout) {
+                  clearTimeout(this.rescanTimeout);
+                }
+                this.rescanTimeout = setTimeout(() => {
                   this.findSearchInputs();
                   this.injectCameraIcons();
-                }, 50);
+                }, 100);
               }
             });
           });

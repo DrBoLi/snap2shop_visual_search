@@ -85,28 +85,75 @@ export const action = async ({ request }) => {
       }
     );
 
-    // Format results
-    const results = similarImages.map(item => ({
-      productId: item.productId,
-      imageId: item.imageId,
-      similarity: item.similarity,
-      product: {
-        id: item.product.id,
-        shopifyProductId: item.product.shopifyProductId,
-        handle: item.product.handle,
-        title: item.product.title,
-        description: item.product.description,
-        price: item.product.price,
-        tags: item.product.tags,
-      },
-      image: {
-        id: item.image.id,
-        url: item.image.imageUrl,
-        altText: item.image.altText,
-        width: item.image.width,
-        height: item.image.height,
-      },
-    }));
+    // Deduplicate by product to avoid showing multiple images for the same item
+    const seenProducts = new Set();
+    const deduplicatedItems = [];
+    for (const item of similarImages) {
+      if (!item?.productId) {
+        continue;
+      }
+      if (seenProducts.has(item.productId)) {
+        continue;
+      }
+      seenProducts.add(item.productId);
+      deduplicatedItems.push(item);
+    }
+
+    // Fetch the primary image (earliest created) for each product to use as the display image
+    const productIds = deduplicatedItems.map((item) => item.productId);
+    let primaryImagesByProduct = new Map();
+    if (productIds.length > 0) {
+      const productsWithPrimaryImage = await db.product.findMany({
+        where: { id: { in: productIds } },
+        select: {
+          id: true,
+          images: {
+            orderBy: { createdAt: 'asc' },
+            take: 1,
+            select: {
+              id: true,
+              imageUrl: true,
+              altText: true,
+              width: true,
+              height: true,
+            },
+          },
+        },
+      });
+
+      primaryImagesByProduct = new Map(
+        productsWithPrimaryImage.map((product) => [
+          product.id,
+          product.images[0] || null,
+        ]),
+      );
+    }
+
+    // Format response results using the deduplicated set and chosen primary image
+    const results = deduplicatedItems.map((item) => {
+      const primaryImage = primaryImagesByProduct.get(item.productId) || item.image;
+      return {
+        productId: item.productId,
+        imageId: primaryImage?.id || item.imageId,
+        similarity: item.similarity,
+        product: {
+          id: item.product.id,
+          shopifyProductId: item.product.shopifyProductId,
+          handle: item.product.handle,
+          title: item.product.title,
+          description: item.product.description,
+          price: item.product.price,
+          tags: item.product.tags,
+        },
+        image: {
+          id: primaryImage?.id || item.image.id,
+          url: primaryImage?.imageUrl || item.image.imageUrl,
+          altText: primaryImage?.altText ?? item.image.altText,
+          width: primaryImage?.width ?? item.image.width,
+          height: primaryImage?.height ?? item.image.height,
+        },
+      };
+    });
 
     // Get search statistics
     const stats = await vectorDb.getEmbeddingStats(shop);

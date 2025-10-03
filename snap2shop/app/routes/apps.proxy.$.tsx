@@ -314,11 +314,22 @@ async function handleImageSearch(request) {
       include: {
         product: {
           select: {
+            id: true,
             shopifyProductId: true,
             handle: true,
             title: true,
             price: true,
-            description: true
+            description: true,
+            images: {
+              orderBy: { createdAt: 'asc' },
+              take: 1,
+              select: {
+                imageUrl: true,
+                altText: true,
+                width: true,
+                height: true,
+              },
+            },
           }
         }
       }
@@ -326,20 +337,30 @@ async function handleImageSearch(request) {
 
     // Build results with similarity scores
     const results = [];
+    const seenProducts = new Set();
     for (const embedding of similarEmbeddings) {
       const productImage = productImages.find(img => img.id === embedding.imageId);
       if (productImage && results.length < maxResults) {
-        // Use actual product handle from database, or fallback to ID-based handle
-        const handle = productImage.product.handle || `product-${productImage.product.shopifyProductId}`;
+        const productData = productImage.product;
+        if (!productData || seenProducts.has(productData.id)) {
+          continue;
+        }
+
+        seenProducts.add(productData.id);
+
+        // Prefer the product's primary image (earliest created), fallback to the matched image
+        const primaryImage = productData.images?.[0];
+        const imageUrl = primaryImage?.imageUrl || productImage.imageUrl;
+        const handle = productData.handle || `product-${productData.shopifyProductId}`;
 
         results.push({
-          id: productImage.product.shopifyProductId,
-          title: productImage.product.title,
-          handle: handle,
-          price: productImage.product.price,
-          image_url: productImage.imageUrl,
+          id: productData.shopifyProductId,
+          title: productData.title,
+          handle,
+          price: productData.price,
+          image_url: imageUrl,
           similarity: embedding.similarity,
-          description: productImage.product.description
+          description: productData.description
         });
       }
     }

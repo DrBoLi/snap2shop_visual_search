@@ -11,9 +11,10 @@ import {
   Button,
   Banner,
   FormLayout,
-  Layout,
   Divider,
   TextField,
+  Box,
+  List,
 } from "@shopify/polaris";
 import { TitleBar, useAppBridge } from "@shopify/app-bridge-react";
 import { authenticate } from "../shopify.server";
@@ -137,9 +138,59 @@ export default function Settings() {
   };
 
   return (
-    <Page>
+    <Page fullWidth>
       <TitleBar title="Settings" />
-      <BlockStack gap="500">
+
+      <Box paddingBlockEnd="600">
+        <Card>
+          <div className="hero-section hero-gradient-bg">
+            <div className="animated-blobs">
+              <div className="blob blob-1"></div>
+              <div className="blob blob-2"></div>
+              <div className="blob blob-3"></div>
+            </div>
+
+            <div className="hero-content">
+              <div className="hero-logo-container">
+                <img
+                  src="/snap2shop-logo-2.png"
+                  alt="Snap2Shop Logo"
+                  className="hero-logo"
+                />
+              </div>
+
+              <div className="hero-badge">
+                <span style={{ fontSize: '16px' }}>⚙️</span>
+                <span>Visual Search Controls</span>
+              </div>
+
+              <h2 className="hero-heading">Fine-tune Your Visual Search</h2>
+
+              <p className="hero-description">
+                Adjust discovery settings, manage thresholds, and keep your catalog curated for the best shopper experience.
+                Changes apply instantly across your storefront and embedded experiences.
+              </p>
+
+              <div className="hero-stats">
+                <div className="hero-stat">
+                  <div className="hero-stat-value">30s</div>
+                  <div className="hero-stat-label">Average tweak time</div>
+                </div>
+                <div className="hero-stat hero-stat-divider">
+                  <div className="hero-stat-value">0.4</div>
+                  <div className="hero-stat-label">Recommended threshold</div>
+                </div>
+                <div className="hero-stat">
+                  <div className="hero-stat-value">∞</div>
+                  <div className="hero-stat-label">Syncs per day</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </Card>
+      </Box>
+
+      <BlockStack gap="600">
         {loadError && (
           <Banner status="critical">
             <p>{loadError}</p>
@@ -152,130 +203,103 @@ export default function Settings() {
           </Banner>
         )}
 
-        <Layout>
-          <Layout.Section>
+        <div className="features-grid">
+          <div className="feature-card">
             <Card>
-              <BlockStack gap="500">
-                <Text as="h1" variant="headingLg">
-                  Visual Search Settings
-                </Text>
-                <Text as="p" variant="bodyMd">
-                  Configure how visual search behaves for your customers.
-                </Text>
+              <Box padding="500">
+                <BlockStack gap="500">
+                  <div>
+                    <div className="step-badge step-badge-blue">Configuration</div>
+                    <Text as="h2" variant="headingXl">
+                      Control Visual Search Behavior
+                    </Text>
+                    <Text as="p" variant="bodyMd">
+                      Update product filtering and similarity logic to match your merchandising strategy.
+                    </Text>
+                  </div>
 
-                <Divider />
+                  <Divider />
 
-                <FormLayout>
-                  <FormLayout.Group>
-                    <BlockStack gap="400">
-                      <Text as="h2" variant="headingMd">
-                        Product Filtering
-                      </Text>
+                  <FormLayout>
+                    <FormLayout.Group>
+                      <BlockStack gap="400">
+                        <Text as="h3" variant="headingMd">
+                          Product filtering
+                        </Text>
 
-                      <Checkbox
-                        label="Hide out-of-stock products"
-                        helpText="When enabled, visual search will only show products that are currently available for sale and have inventory."
-                        checked={settings.hideOutOfStock}
-                        onChange={(checked) => handleSettingChange('hideOutOfStock', checked)}
-                      />
+                        <Checkbox
+                          label="Hide out-of-stock products"
+                          helpText="When enabled, visual search will only show products that are currently available for sale and have inventory."
+                          checked={settings.hideOutOfStock}
+                          onChange={(checked) => handleSettingChange('hideOutOfStock', checked)}
+                        />
 
-                      <TextField
-                        label="Similarity threshold"
-                        type="number"
-                        value={settings.similarityThreshold.toString()}
-                        onChange={(value) => handleSettingChange('similarityThreshold', value)}
-                        error={thresholdError}
-                        helpText="Minimum similarity score (0.0-0.9). Higher values show closer matches but fewer results. Default: 0.4"
-                        min="0"
-                        max="0.9"
-                        step="0.1"
-                        autoComplete="off"
-                      />
-                    </BlockStack>
-                  </FormLayout.Group>
-                </FormLayout>
+                        <TextField
+                          label="Similarity threshold"
+                          type="number"
+                          value={settings.similarityThreshold.toString()}
+                          onChange={(value) => handleSettingChange('similarityThreshold', value)}
+                          error={thresholdError}
+                          helpText="Minimum similarity score (0.0-0.9). Higher values show closer matches but fewer results. Default: 0.4"
+                          min="0"
+                          max="0.9"
+                          step="0.1"
+                          autoComplete="off"
+                        />
+                      </BlockStack>
+                    </FormLayout.Group>
+                  </FormLayout>
 
-                <Divider />
+                  <Divider />
 
-                <InlineStack gap="300">
-                  <Button
-                    variant="primary"
-                    onClick={handleSubmit}
-                    loading={isSubmitting}
-                    disabled={!hasChanges || isSubmitting || thresholdError}
-                  >
-                    {isSubmitting ? 'Saving...' : 'Save Settings'}
-                  </Button>
-
-                  {hasChanges && (
-                    <Button
-                      onClick={handleReset}
-                      disabled={isSubmitting}
-                    >
+                  <InlineStack gap="300" align="end">
+                    <Button onClick={handleReset} disabled={!hasChanges || isSubmitting}>
                       Reset
                     </Button>
-                  )}
-                </InlineStack>
-              </BlockStack>
+                    <Button
+                      primary
+                      onClick={handleSubmit}
+                      loading={isSubmitting}
+                      disabled={!hasChanges || isSubmitting || Boolean(thresholdError)}
+                    >
+                      Save settings
+                    </Button>
+                  </InlineStack>
+                </BlockStack>
+              </Box>
             </Card>
-          </Layout.Section>
+          </div>
 
-          <Layout.Section variant="oneThird">
+          <div className="feature-card">
             <Card>
-              <BlockStack gap="300">
-                <Text as="h3" variant="headingMd">
-                  Current Configuration
-                </Text>
-
-                <BlockStack gap="200">
-                  <InlineStack align="space-between">
-                    <Text as="span" variant="bodyMd">Hide out-of-stock</Text>
-                    <Text as="span" variant="bodyMd" fontWeight="semibold">
-                      {settings.hideOutOfStock ? 'Enabled' : 'Disabled'}
+              <Box padding="500">
+                <BlockStack gap="400">
+                  <div>
+                    <div className="step-badge step-badge-green">Best practices</div>
+                    <Text as="h2" variant="headingLg">
+                      Keep results fresh and relevant
                     </Text>
-                  </InlineStack>
+                  </div>
 
-                  <InlineStack align="space-between">
-                    <Text as="span" variant="bodyMd">Similarity threshold</Text>
-                    <Text as="span" variant="bodyMd" fontWeight="semibold">
-                      {settings.similarityThreshold}
-                    </Text>
-                  </InlineStack>
+                  <List type="bullet">
+                    <List.Item>Start with a threshold between 0.4 and 0.5 for balanced relevance and coverage.</List.Item>
+                    <List.Item>Enable out-of-stock hiding so shoppers never land on unavailable items.</List.Item>
+                    <List.Item>Re-run product syncs whenever you launch new collections or retire products.</List.Item>
+                    <List.Item>Schedule routine embedding refreshes to reflect updated catalog imagery.</List.Item>
+                  </List>
 
-                  <InlineStack align="space-between">
-                    <Text as="span" variant="bodyMd">Shop</Text>
-                    <Text as="span" variant="bodyMd" fontWeight="semibold">
-                      {shop}
-                    </Text>
-                  </InlineStack>
-                </BlockStack>
+                  <Divider />
 
-                <Divider />
-
-                <BlockStack gap="200">
-                  <Text as="h4" variant="headingSm">
-                    How it works
-                  </Text>
-                  <Text as="p" variant="bodyMd">
-                    Configure how visual search filters and ranks results:
-                  </Text>
-                  <BlockStack gap="100">
-                    <Text as="p" variant="bodyMd">
-                      <strong>Hide out-of-stock:</strong> When enabled, filters results to only include products marked as available for sale with inventory greater than zero.
-                    </Text>
-                    <Text as="p" variant="bodyMd">
-                      <strong>Similarity threshold:</strong> Controls the minimum similarity score (0.0-0.9) for search results. Higher values show closer matches but may return fewer results.
-                    </Text>
-                  </BlockStack>
-                  <Text as="p" variant="bodyMd">
-                    These settings help ensure customers see the most relevant and available products for their searches.
+                  <Text as="p" variant="bodySm" tone="subdued">
+                    Need help with deeper tuning? Visit the Help &amp; Support tab for advanced guides and troubleshooting tips, or contact our team anytime.
                   </Text>
                 </BlockStack>
-              </BlockStack>
+              </Box>
             </Card>
-          </Layout.Section>
-        </Layout>
+          </div>
+        </div>
       </BlockStack>
     </Page>
   );
+
 }

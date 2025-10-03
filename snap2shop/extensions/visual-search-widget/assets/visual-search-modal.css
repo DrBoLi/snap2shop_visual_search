@@ -462,6 +462,25 @@
   flex-shrink: 0 !important;
 }
 
+.visual-search-camera-btn.visual-search-has-preview {
+  padding-right: 8px !important;
+  gap: 6px !important;
+}
+
+.visual-search-preview-thumb {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background-size: cover;
+  background-position: center;
+  box-shadow: 0 0 0 2px #ffffff;
+  flex-shrink: 0;
+}
+
+.visual-search-camera-btn.visual-search-has-preview svg {
+  opacity: 0.5 !important;
+}
+
 /* Ensure camera button is always visible */
 .visual-search-camera-btn {
   visibility: visible !important;

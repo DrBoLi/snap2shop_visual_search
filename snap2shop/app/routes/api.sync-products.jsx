@@ -183,12 +183,15 @@ async function syncProductsBackground(shop, admin) {
       data: { totalItems: totalProducts },
     });
 
+    const fetchedProductIds = new Set();
+
     // Process each product
     for (const productEdge of allProducts) {
       const product = productEdge.node;
       
       // Extract Shopify product ID (remove gid://shopify/Product/ prefix)
       const shopifyProductId = product.id.split("/").pop();
+      fetchedProductIds.add(shopifyProductId);
       
       // Create or update product
       const dbProduct = await db.product.upsert({
@@ -268,6 +271,22 @@ async function syncProductsBackground(shop, admin) {
           progress: totalProcessed,
         },
       });
+    }
+
+    // Remove products that no longer exist in Shopify
+    try {
+      const removed = await db.product.deleteMany({
+        where: {
+          shop,
+          shopifyProductId: { notIn: Array.from(fetchedProductIds) },
+        },
+      });
+
+      if (removed.count > 0) {
+        logger.info(`Removed ${removed.count} stale products for shop ${shop}`);
+      }
+    } catch (cleanupError) {
+      logger.warn('Failed to remove stale products after sync:', cleanupError);
     }
 
     // Mark sync as completed
