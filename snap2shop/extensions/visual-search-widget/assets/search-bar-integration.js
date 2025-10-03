@@ -153,7 +153,9 @@
       this.errorHandler = null;
       this.environmentInfo = VisualSearchEnv.getInfo(this.config);
       this.shopDomain = this.environmentInfo.shopDomain || VisualSearchEnv.detectShopDomain(this.config);
-      this.debugEnabled = Boolean((this.config && this.config.debug) || this.environmentInfo.isDevelopment);
+
+      const globalDebugFlag = typeof window !== 'undefined' && (window.visualSearchDebug === true || window.localStorage?.getItem('visualSearchDebug') === '1');
+      this.debugEnabled = Boolean((this.config && this.config.debug) || this.environmentInfo.isDevelopment || globalDebugFlag);
       this.debug = (...args) => {
         if (this.debugEnabled) {
           console.debug(...args);
@@ -202,6 +204,8 @@
 
       // Clean up any existing camera icons first
       this.cleanupExistingCameraIcons();
+      this.debug('[Visual Search] Environment info', this.environmentInfo);
+      this.debug('[Visual Search] Configuration', this.config);
 
       // Refresh environment info in case host/context changed after load
       this.environmentInfo = VisualSearchEnv.getInfo(this.config);
@@ -223,6 +227,7 @@
       }
       
       this.findSearchInputs();
+      this.debug('[Visual Search] Search inputs detected:', this.searchInputs.map((input, index) => this.describeInput(input, index)));
       this.injectCameraIcons();
       this.createModal();
       this.bindEvents();
@@ -398,33 +403,63 @@
              style.opacity !== '0';
     }
 
+    isVisualSearchElement(element) {
+      if (!element || element.nodeType !== Node.ELEMENT_NODE) {
+        return false;
+      }
+
+      const className = typeof element.className === 'string'
+        ? element.className
+        : (element.className && element.className.baseVal) || '';
+
+      if (className.includes('visual-search')) {
+        return true;
+      }
+
+      if (typeof element.closest === 'function') {
+        const visualAncestor = element.closest('[class*="visual-search"]');
+        if (visualAncestor) {
+          return true;
+        }
+      }
+
+      return false;
+    }
+
     injectCameraIcons() {
       let cameraAttached = false;
 
-      this.searchInputs.forEach((input) => {
-        if (input.dataset.visualSearchEnabled) {
-          if (this.hasExistingCameraButton(input)) {
-            cameraAttached = true;
-          }
-          return;
-        }
-
-        const isPrimaryInput = this.isVisible(input) && input.offsetWidth > 200;
+      this.searchInputs.forEach((input, index) => {
+        this.debug('[Visual Search] Evaluating input', this.describeInput(input, index));
         const containerHasButton = this.hasExistingCameraButton(input);
+
+        if (input.dataset.visualSearchEnabled === 'true' && !containerHasButton) {
+          this.debug('[Visual Search] Previously processed input lost its camera button, resetting flag', this.describeInput(input, index));
+          input.removeAttribute('data-visual-search-enabled');
+        }
 
         if (containerHasButton) {
           input.dataset.visualSearchEnabled = 'true';
           cameraAttached = true;
+          this.debug('[Visual Search] Container already has camera button', this.describeInput(input, index));
           return;
         }
 
+        if (input.dataset.visualSearchEnabled === 'true') {
+          this.debug('[Visual Search] Input marked processed but no button attached (after reset)', this.describeInput(input, index));
+        }
+
+        const isPrimaryInput = this.isVisible(input) && input.offsetWidth > 160;
+
         if (cameraAttached || !isPrimaryInput) {
           input.dataset.visualSearchEnabled = 'true';
+          this.debug('[Visual Search] Skipping input (cameraAttached:', cameraAttached, ', isPrimary:', isPrimaryInput, ')', this.describeInput(input, index));
           return;
         }
 
         const cameraButton = this.createCameraButton();
         const insertionPoint = this.findOptimalInsertionPoint(input);
+        this.debug('[Visual Search] Insertion strategy', insertionPoint.method, this.describeInput(input, index));
 
         if (insertionPoint.method === 'inside-container') {
           insertionPoint.container.appendChild(cameraButton);
@@ -444,11 +479,20 @@
 
         input.dataset.visualSearchEnabled = 'true';
         cameraAttached = true;
+        this.debug('[Visual Search] Camera button attached', this.describeInput(input, index));
 
         if (this.latestPreviewDataUrl) {
           this.decorateCameraButtonWithPreview(cameraButton, this.latestPreviewDataUrl);
         }
       });
+    }
+
+    cleanupExistingCameraIcons() {
+      document.querySelectorAll('.visual-search-camera-btn').forEach((button) => button.remove());
+      document.querySelectorAll('[data-visual-search-enabled="true"]').forEach((input) => {
+        input.removeAttribute('data-visual-search-enabled');
+      });
+      this.debug('[Visual Search] Existing camera icons removed');
     }
 
     hasExistingCameraButton(input) {
@@ -592,6 +636,22 @@
         parent.style.alignItems = parent.style.alignItems || 'center';
         parent.style.gap = parent.style.gap || '6px';
       }
+    }
+
+    describeInput(input, index) {
+      if (!input) return { index, note: 'no input' };
+      const rect = input.getBoundingClientRect();
+      return {
+        index,
+        id: input.id,
+        name: input.name,
+        placeholder: input.placeholder,
+        width: Math.round(rect.width),
+        top: Math.round(rect.top),
+        classes: input.className,
+        visible: this.isVisible(input),
+        dataset: { ...input.dataset },
+      };
     }
 
     positionCameraIconNextToSearch(cameraButton) {
@@ -755,8 +815,8 @@
                       <polyline points="17,8 12,3 7,8"/>
                       <line x1="12" y1="3" x2="12" y2="15"/>
                     </svg>
-                    <p class="visual-search-upload-text">Drop an image here or click to browse</p>
-                    <p class="visual-search-upload-hint">Supports JPG, PNG, WebP up to 5MB</p>
+                    <p class="visual-search-upload-text" data-desktop-text="Drop an image here or click to browse" data-mobile-text="Upload a photo from your device">Drop an image here or click to browse</p>
+                    <p class="visual-search-upload-hint" data-desktop-text="Supports JPG, PNG, WebP up to 5MB" data-mobile-text="Choose a photo from your library (JPG, PNG, WebP)">Supports JPG, PNG, WebP up to 5MB</p>
                   </div>
                   <input type="file" id="modal-image-input" class="visual-search-file-input" accept="image/jpeg,image/jpg,image/png,image/webp" hidden>
                   <div class="visual-search-image-preview" id="modal-image-preview" style="display: none;">
@@ -826,6 +886,7 @@
       
       document.body.appendChild(modal);
       this.modal = modal;
+      this.updateUploadCopyForDevice();
       
       this.debug('[Visual Search] Modal created and added to DOM:', this.modal);
       this.debug('[Visual Search] Modal is in DOM:', document.body.contains(this.modal));
@@ -862,6 +923,29 @@
       this.initCameraHandler();
     }
 
+    updateUploadCopyForDevice() {
+      if (!this.modal) return;
+
+      const coarsePointer = typeof window !== 'undefined' && window.matchMedia ? window.matchMedia('(pointer: coarse)').matches : false;
+      const smallViewport = typeof window !== 'undefined' && window.matchMedia ? window.matchMedia('(max-width: 768px)').matches : false;
+      const userAgentMobile = typeof navigator !== 'undefined' && /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile/i.test(navigator.userAgent);
+      const useMobileCopy = coarsePointer || smallViewport || userAgentMobile;
+
+      const uploadText = this.modal.querySelector('.visual-search-upload-text');
+      if (uploadText) {
+        const desktopCopy = uploadText.dataset.desktopText || uploadText.textContent;
+        const mobileCopy = uploadText.dataset.mobileText || desktopCopy;
+        uploadText.textContent = useMobileCopy ? mobileCopy : desktopCopy;
+      }
+
+      const uploadHint = this.modal.querySelector('.visual-search-upload-hint');
+      if (uploadHint) {
+        const desktopHint = uploadHint.dataset.desktopText || uploadHint.textContent;
+        const mobileHint = uploadHint.dataset.mobileText || desktopHint;
+        uploadHint.textContent = useMobileCopy ? mobileHint : desktopHint;
+      }
+    }
+
     initUploadHandler() {
       const uploadArea = this.modal.querySelector('#modal-upload-area');
       const fileInput = this.modal.querySelector('#modal-image-input');
@@ -873,11 +957,27 @@
       let selectedFile = null;
       
       // Click to upload
-      uploadArea.addEventListener('click', () => {
+      const triggerUpload = () => {
         if (preview.style.display === 'none') {
+          if (fileInput.hasAttribute('capture')) {
+            fileInput.removeAttribute('capture');
+          }
           fileInput.click();
         }
+      };
+
+      uploadArea.addEventListener('click', () => {
+        triggerUpload();
       });
+
+      const uploadTriggerButton = this.modal.querySelector('.visual-search-upload-trigger');
+      if (uploadTriggerButton) {
+        uploadTriggerButton.addEventListener('click', (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          triggerUpload();
+        });
+      }
       
       // Drag and drop
       uploadArea.addEventListener('dragover', (e) => {
@@ -1000,6 +1100,13 @@
       panels.forEach(panel => {
         panel.classList.toggle('active', panel.dataset.panel === tabName);
       });
+
+      const fileInput = this.modal.querySelector('#modal-image-input');
+      if (fileInput) {
+        if (tabName === 'upload') {
+          fileInput.removeAttribute('capture');
+        }
+      }
     }
 
     async performSearch(file) {
@@ -1457,7 +1564,9 @@
           return;
         }
       }
-    
+
+      this.updateUploadCopyForDevice();
+
       // Guarantee modal is at top of DOM
       this.forceModalToTop();
     
@@ -1663,6 +1772,9 @@
             // Check if any new search inputs were added
             mutation.addedNodes.forEach((node) => {
               if (node.nodeType === Node.ELEMENT_NODE) {
+                if (this.isVisualSearchElement(node)) {
+                  return;
+                }
                 // Check if the added node is a search input or contains search inputs
                 if (this.looksLikeSearchInput(node) || 
                     node.querySelector && node.querySelector('input[type="search"], input[type="text"]')) {
@@ -1685,6 +1797,9 @@
           if (mutation.type === 'attributes') {
             const target = mutation.target;
             if (target.nodeType === Node.ELEMENT_NODE) {
+              if (this.isVisualSearchElement(target)) {
+                return;
+              }
               // Check if it's a search-related element that became visible
               if ((mutation.attributeName === 'style' || mutation.attributeName === 'class') &&
                   (target.className.includes('search') || target.closest('[class*="search"]'))) {
