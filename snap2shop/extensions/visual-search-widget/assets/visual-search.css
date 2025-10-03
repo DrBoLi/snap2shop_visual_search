@@ -347,7 +347,8 @@
 }
 
 .visual-search-results-grid .visual-search-result-item {
-  display: block;
+  display: flex;
+  flex-direction: column;
   background: #ffffff;
   border-radius: 16px;
   box-shadow: 0 20px 45px rgba(15, 23, 42, 0.12);
@@ -363,8 +364,10 @@
 
 .visual-search-results-grid .visual-search-result-image {
   width: 100%;
-  height: 260px;
-  object-fit: cover;
+  height: auto;
+  display: block;
+  object-fit: contain;
+  background-color: #ffffff;
 }
 
 .visual-search-results-grid .visual-search-result-info {
