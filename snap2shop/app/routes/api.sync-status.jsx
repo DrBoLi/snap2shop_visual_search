@@ -1,6 +1,7 @@
 import { json } from "@remix-run/node";
 import { authenticate } from "../shopify.server";
 import db from "../db.server";
+import logger from "../utils/logger.js";
 
 export const loader = async ({ request }) => {
   const { session } = await authenticate.admin(request);
@@ -29,7 +30,7 @@ export const loader = async ({ request }) => {
       errorMessage: syncStatus.errorMessage,
     });
   } catch (error) {
-    console.error("Error fetching sync status:", error);
+    logger.error("Error fetching sync status:", error);
     return json(
       { error: "Failed to fetch sync status" },
       { status: 500 }

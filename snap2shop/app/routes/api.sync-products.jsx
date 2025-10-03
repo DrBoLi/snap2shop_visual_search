@@ -3,6 +3,7 @@ import { authenticate } from "../shopify.server";
 import db from "../db.server";
 import clipInference from "../services/clipInference.server";
 import vectorDb from "../services/vectorDb.server";
+import logger from "../utils/logger.js";
 
 const PRODUCTS_QUERY = `
   query getProducts($first: Int!, $after: String) {
@@ -14,7 +15,7 @@ const PRODUCTS_QUERY = `
           title
           description
           tags
-          availableForSale
+          status
           totalInventory
           priceRangeV2 {
             minVariantPrice {
@@ -86,10 +87,10 @@ async function handleDelete(shop) {
       },
     });
 
-    console.log(`Deleted all product data and embeddings for shop: ${shop}`);
-    return json({ success: true, message: "All product data and embeddings deleted" });
+    logger.info(`Deleted all product data and embeddings for shop: ${shop}`);
+    return json({ success: true, message: "All product data deleted" });
   } catch (error) {
-    console.error("Error deleting products:", error);
+    logger.error("Error deleting products:", error);
     return json(
       { error: "Failed to delete product data" },
       { status: 500 }
@@ -120,7 +121,7 @@ async function handleSync(shop, admin) {
 
     return json({ success: true, message: "Sync started" });
   } catch (error) {
-    console.error("Error starting sync:", error);
+    logger.error("Error starting sync:", error);
     
     // Update sync status to error
     await db.syncStatus.upsert({
@@ -203,7 +204,7 @@ async function syncProductsBackground(shop, admin) {
           description: product.description || null,
           tags: product.tags.join(",") || null,
           price: product.priceRangeV2?.minVariantPrice?.amount || null,
-          availableForSale: product.availableForSale ?? true,
+          availableForSale: product.status === "ACTIVE",
           totalInventory: product.totalInventory ?? null,
         },
         create: {
@@ -214,7 +215,7 @@ async function syncProductsBackground(shop, admin) {
           description: product.description || null,
           tags: product.tags.join(",") || null,
           price: product.priceRangeV2?.minVariantPrice?.amount || null,
-          availableForSale: product.availableForSale ?? true,
+          availableForSale: product.status === "ACTIVE",
           totalInventory: product.totalInventory ?? null,
         },
       });
@@ -241,7 +242,7 @@ async function syncProductsBackground(shop, admin) {
 
         // Generate embedding for the image using CLIP
         try {
-          console.log(`Generating CLIP embedding for image: ${image.url}`);
+          logger.debug(`Generating CLIP embedding for image: ${image.url}`);
           const embeddingResult = await clipInference.generateEmbedding(image.url);
           
           await vectorDb.storeEmbedding(
@@ -251,9 +252,9 @@ async function syncProductsBackground(shop, admin) {
             embeddingResult.modelName
           );
           
-          console.log(`Generated and stored CLIP embedding for image ${dbImage.id}`);
+          logger.debug(`Generated and stored CLIP embedding for image ${dbImage.id}`);
         } catch (embeddingError) {
-          console.error(`Failed to generate embedding for image ${image.url}:`, embeddingError.message);
+          logger.error(`Failed to generate embedding for image ${image.url}:`, embeddingError);
           // Continue with other images even if one fails
         }
       }
@@ -280,7 +281,7 @@ async function syncProductsBackground(shop, admin) {
     });
 
   } catch (error) {
-    console.error("Background sync error:", error);
+    logger.error("Background sync error:", error);
     
     // Update sync status to error
     await db.syncStatus.update({

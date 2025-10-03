@@ -1,4 +1,5 @@
 import db from '../db.server';
+import logger from '../utils/logger.js';
 
 class VectorDatabaseService {
   constructor() {
@@ -23,10 +24,10 @@ class VectorDatabaseService {
         },
       });
 
-      console.log(`Stored embedding for image ${imageId} with model ${modelName}`);
+      logger.debug(`Stored embedding for image ${imageId} with model ${modelName}`);
       return result;
     } catch (error) {
-      console.error('Error storing embedding:', error);
+      logger.error('Error storing embedding:', error);
       throw error;
     }
   }
@@ -46,7 +47,7 @@ class VectorDatabaseService {
 
       return null;
     } catch (error) {
-      console.error('Error retrieving embedding:', error);
+      logger.error('Error retrieving embedding:', error);
       throw error;
     }
   }
@@ -70,7 +71,7 @@ class VectorDatabaseService {
         product: embedding.image.product,
       }));
     } catch (error) {
-      console.error('Error retrieving shop embeddings:', error);
+      logger.error('Error retrieving shop embeddings:', error);
       throw error;
     }
   }
@@ -88,49 +89,49 @@ class VectorDatabaseService {
       // Filter embeddings to ensure consistent dimensions
       const filteredEmbeddings = allEmbeddings.filter(item => {
         if (!item.embedding || item.embedding.length !== queryEmbedding.length) {
-          console.warn(`⚠️ Skipping embedding with mismatched dimensions: ${item.embedding?.length} vs ${queryEmbedding.length} (model: ${item.modelName})`);
+          logger.warn(`⚠️ Skipping embedding with mismatched dimensions: ${item.embedding?.length} vs ${queryEmbedding.length} (model: ${item.modelName})`);
           return false;
         }
         return true;
       });
 
-      console.log(`🔍 Filtered embeddings: ${filteredEmbeddings.length}/${allEmbeddings.length} (dimension: ${queryEmbedding.length})`);
+      logger.debug(`🔍 Filtered embeddings: ${filteredEmbeddings.length}/${allEmbeddings.length} (dimension: ${queryEmbedding.length})`);
       
       if (filteredEmbeddings.length === 0) {
-        console.warn('⚠️ No embeddings with matching dimensions found!');
+        logger.warn('⚠️ No embeddings with matching dimensions found!');
         return [];
       }
 
       // Calculate similarities
       const similarities = filteredEmbeddings.map((item, index) => {
         if (index === 0) {
-          console.log('🔍 First stored embedding dimensions:', item.embedding.length);
-          console.log('🔍 Query embedding dimensions:', queryEmbedding.length);
-          console.log('🔍 First stored embedding model:', item.modelName);
-          console.log('🔍 Similarity threshold:', threshold);
-          console.log('🔍 Total embeddings to compare:', filteredEmbeddings.length);
+          logger.debug('🔍 First stored embedding dimensions:', item.embedding.length);
+          logger.debug('🔍 Query embedding dimensions:', queryEmbedding.length);
+          logger.debug('🔍 First stored embedding model:', item.modelName);
+          logger.debug('🔍 Similarity threshold:', threshold);
+          logger.debug('🔍 Total embeddings to compare:', filteredEmbeddings.length);
           
           // Log query embedding details
-          console.log(`🔍 Query embedding first 10 values: [${queryEmbedding.slice(0, 10).map(v => v.toFixed(4)).join(', ')}]`);
-          console.log(`🔍 Query embedding range: min=${Math.min(...queryEmbedding).toFixed(4)}, max=${Math.max(...queryEmbedding).toFixed(4)}`);
+          logger.debug(`🔍 Query embedding first 10 values: [${queryEmbedding.slice(0, 10).map(v => v.toFixed(4)).join(', ')}]`);
+          logger.debug(`🔍 Query embedding range: min=${Math.min(...queryEmbedding).toFixed(4)}, max=${Math.max(...queryEmbedding).toFixed(4)}`);
         }
         
         const similarity = this.calculateCosineSimilarity(queryEmbedding, item.embedding);
         
         // Log top 5 similarity scores for debugging
         if (index < 5) {
-          console.log(`🔍 Item ${index + 1}: similarity=${similarity != null ? similarity.toFixed(4) : 'null'}, product="${item.image?.product?.title?.substring(0, 30)}"`);
+          logger.debug(`🔍 Item ${index + 1}: similarity=${similarity != null ? similarity.toFixed(4) : 'null'}, product="${item.image?.product?.title?.substring(0, 30)}"`);
           
           // Log first few values of stored embedding for comparison
           if (index < 3) {
-            console.log(`🔍   Stored embedding first 10 values: [${item.embedding.slice(0, 10).map(v => v != null ? v.toFixed(4) : 'null').join(', ')}]`);
+            logger.debug(`🔍   Stored embedding first 10 values: [${item.embedding.slice(0, 10).map(v => v != null ? v.toFixed(4) : 'null').join(', ')}]`);
             const minVal = Math.min(...item.embedding);
             const maxVal = Math.max(...item.embedding);
-            console.log(`🔍   Stored embedding range: min=${minVal != null ? minVal.toFixed(4) : 'null'}, max=${maxVal != null ? maxVal.toFixed(4) : 'null'}`);
+            logger.debug(`🔍   Stored embedding range: min=${minVal != null ? minVal.toFixed(4) : 'null'}, max=${maxVal != null ? maxVal.toFixed(4) : 'null'}`);
             
             // Validate embedding model consistency
             if (item.modelName && item.modelName.includes('pseudo')) {
-              console.warn(`⚠️  WARNING: Found pseudo-embedding in database! Model: ${item.modelName}`);
+              logger.warn(`⚠️  WARNING: Found pseudo-embedding in database! Model: ${item.modelName}`);
             }
           }
         }
@@ -151,12 +152,12 @@ class VectorDatabaseService {
         const maxSimilarity = Math.max(...similaritiesArray);
         const minSimilarity = Math.min(...similaritiesArray);
         
-        console.log(`🔍 Similarity distribution: avg=${avgSimilarity.toFixed(4)}, min=${minSimilarity.toFixed(4)}, max=${maxSimilarity.toFixed(4)}`);
-        console.log(`🔍 Similarities above 0.1: ${similaritiesArray.filter(s => s > 0.1).length}`);
-        console.log(`🔍 Similarities above 0.2: ${similaritiesArray.filter(s => s > 0.2).length}`);
-        console.log(`🔍 Similarities above 0.3: ${similaritiesArray.filter(s => s > 0.3).length}`);
+        logger.debug(`🔍 Similarity distribution: avg=${avgSimilarity.toFixed(4)}, min=${minSimilarity.toFixed(4)}, max=${maxSimilarity.toFixed(4)}`);
+        logger.debug(`🔍 Similarities above 0.1: ${similaritiesArray.filter(s => s > 0.1).length}`);
+        logger.debug(`🔍 Similarities above 0.2: ${similaritiesArray.filter(s => s > 0.2).length}`);
+        logger.debug(`🔍 Similarities above 0.3: ${similaritiesArray.filter(s => s > 0.3).length}`);
       } else {
-        console.log('🔍 No valid similarities calculated!');
+        logger.debug('🔍 No valid similarities calculated!');
       }
 
       // Filter by threshold and sort by similarity
@@ -185,19 +186,19 @@ class VectorDatabaseService {
         });
 
         if (beforeCount !== filtered.length) {
-          console.log(`🔍 Hide out-of-stock enabled: filtered ${beforeCount - filtered.length} items`);
+          logger.debug(`🔍 Hide out-of-stock enabled: filtered ${beforeCount - filtered.length} items`);
         }
       }
 
-      console.log(`🔍 After filtering (threshold=${threshold}): ${filtered.length}/${similarities.length} items`);
-      console.log('🔍 Top 3 filtered similarities:');
+      logger.debug(`🔍 After filtering (threshold=${threshold}): ${filtered.length}/${similarities.length} items`);
+      logger.debug('🔍 Top 3 filtered similarities:');
       filtered.slice(0, 3).forEach((item, i) => {
-        console.log(`   ${i + 1}. ${item.similarity != null ? item.similarity.toFixed(4) : 'null'} - ${item.product?.title?.substring(0, 30)}`);
+        logger.debug(`   ${i + 1}. ${item.similarity != null ? item.similarity.toFixed(4) : 'null'} - ${item.product?.title?.substring(0, 30)}`);
       });
 
       // Smart fallback logic when threshold filters out all results
       if (filtered.length === 0 && threshold > 0.1) {
-        console.log(`🔄 No results found with threshold ${threshold}, trying progressive fallback...`);
+        logger.debug(`🔄 No results found with threshold ${threshold}, trying progressive fallback...`);
 
         // Try with half the threshold
         const halfThreshold = threshold / 2;
@@ -206,7 +207,7 @@ class VectorDatabaseService {
           .sort((a, b) => b.similarity - a.similarity);
 
         if (halfFiltered.length > 0) {
-          console.log(`✅ Fallback successful: found ${halfFiltered.length} results with threshold ${halfThreshold.toFixed(2)}`);
+          logger.debug(`✅ Fallback successful: found ${halfFiltered.length} results with threshold ${halfThreshold.toFixed(2)}`);
           filtered = hideOutOfStock ? this.applyOutOfStockFilter(halfFiltered) : halfFiltered;
           return filtered.slice(0, topK);
         }
@@ -217,17 +218,17 @@ class VectorDatabaseService {
           .sort((a, b) => b.similarity - a.similarity);
 
         if (permissiveFiltered.length > 0) {
-          console.log(`✅ Permissive fallback successful: found ${permissiveFiltered.length} results with threshold 0.1`);
+          logger.debug(`✅ Permissive fallback successful: found ${permissiveFiltered.length} results with threshold 0.1`);
           filtered = hideOutOfStock ? this.applyOutOfStockFilter(permissiveFiltered) : permissiveFiltered;
           return filtered.slice(0, topK);
         }
 
-        console.log('⚠️ No results found even with permissive fallback');
+        logger.debug('⚠️ No results found even with permissive fallback');
       }
 
       return filtered.slice(0, topK);
     } catch (error) {
-      console.error('Error searching similar embeddings:', error);
+      logger.error('Error searching similar embeddings:', error);
       throw error;
     }
   }
@@ -254,7 +255,7 @@ class VectorDatabaseService {
 
   calculateCosineSimilarity(vec1, vec2) {
     if (!vec1 || !vec2 || vec1.length !== vec2.length) {
-      console.warn('⚠️ Invalid vectors for similarity calculation', { vec1Length: vec1?.length, vec2Length: vec2?.length });
+      logger.warn('Invalid vectors for similarity calculation', { vec1Length: vec1?.length, vec2Length: vec2?.length });
       return 0; // Return 0 instead of throwing error
     }
 
@@ -288,10 +289,11 @@ class VectorDatabaseService {
         where: { shop },
       });
 
-      console.log(`Deleted ${result.count} embeddings for shop ${shop}`);
-      return result;
+      const deletedCount = typeof result?.count === 'number' ? result.count : 0;
+      logger.info(`Deleted ${deletedCount} embeddings for shop ${shop}`);
+      return result ?? { count: deletedCount };
     } catch (error) {
-      console.error('Error deleting embeddings:', error);
+      logger.error('Error deleting embeddings:', error);
       throw error;
     }
   }
@@ -325,7 +327,7 @@ class VectorDatabaseService {
         })),
       };
     } catch (error) {
-      console.error('Error getting embedding stats:', error);
+      logger.error('Error getting embedding stats:', error);
       throw error;
     }
   }

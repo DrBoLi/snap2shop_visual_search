@@ -6,6 +6,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import logger from '../utils/logger.js';
 
 env.allowLocalModels = false;
 // Optional: tune WASM threads if using wasm backend
@@ -30,12 +31,12 @@ class CLIPInferenceService {
 
     this.modelLoading = true;
     try {
-      console.log(`🔄 Loading CLIP model: ${this.modelName}`);
+      logger.info(`Loading CLIP model: ${this.modelName}`);
       // Use CLIP for feature extraction (vision encoder)
       this.model = await pipeline('image-feature-extraction', this.modelName);
-      console.log('✅ CLIP model loaded successfully!');
+      logger.info('CLIP model loaded successfully');
     } catch (err) {
-      console.error('❌ Failed to load CLIP model:', err);
+      logger.error('Failed to load CLIP model:', err);
       this.model = null;
       throw err;
     } finally {
@@ -128,8 +129,8 @@ class CLIPInferenceService {
       const vector = Array.from(output.data || output);
       if (!vector.length) throw new Error('Empty embedding');
 
-      console.log(`✅ Generated CLIP embedding (${vector.length} dims)`);
-      console.log(`   First 8: [${vector.slice(0, 8).map(v => v.toFixed(4)).join(', ')}]`);
+      logger.debug(`Generated CLIP embedding (${vector.length} dims)`);
+      logger.debug(`First 8 values: [${vector.slice(0, 8).map(v => v.toFixed(4)).join(', ')}]`);
 
       return {
         embedding: vector,
@@ -137,15 +138,15 @@ class CLIPInferenceService {
         modelName: this.modelName,
       };
     } catch (err) {
-      console.error('❌ Error generating CLIP embedding:', err.message);
-      console.warn('⚠️ Falling back to pseudo-embedding');
+      logger.error('Error generating CLIP embedding:', err);
+      logger.warn('Falling back to pseudo-embedding');
       return this.generatePseudoEmbedding(imageUrl);
     }
   }
 
    // Keep pseudo-embedding for development/testing only
    async generatePseudoEmbedding(imageUrl) {
-     console.warn('⚠️  Using pseudo-embedding - this should not happen in production!');
+     logger.warn('Using pseudo-embedding; ensure production configuration is correct');
      
      // Always try to use enhanced pseudo-embeddings with actual image processing
      try {
@@ -181,7 +182,7 @@ class CLIPInferenceService {
          // Use Sharp to get basic image statistics
          const { width, height, channels } = await sharp(imageBuffer).metadata();
          
-         console.log(`🔧 Creating enhanced pseudo-embedding with image features: ${width}x${height}, ${channels} channels`);
+         logger.debug(`Creating enhanced pseudo-embedding with image features: ${width}x${height}, ${channels} channels`);
          
          // Create an embedding based on actual image properties
          const embedding = [];
@@ -198,8 +199,8 @@ class CLIPInferenceService {
            embedding.push(feature);
          }
 
-         console.log(`🔍 Pseudo-embedding first 10 values: [${embedding.slice(0, 10).map(v => v.toFixed(4)).join(', ')}]`);
-         console.log(`🔍 Pseudo-embedding range: min=${Math.min(...embedding).toFixed(4)}, max=${Math.max(...embedding).toFixed(4)}`);
+         logger.debug(`Pseudo-embedding first 10 values: [${embedding.slice(0, 10).map(v => v.toFixed(4)).join(', ')}]`);
+         logger.debug(`Pseudo-embedding range: min=${Math.min(...embedding).toFixed(4)}, max=${Math.max(...embedding).toFixed(4)}`);
          
          return {
            embedding,
@@ -208,7 +209,7 @@ class CLIPInferenceService {
          };
        }
      } catch (error) {
-       console.warn('Could not process image for enhanced pseudo-embedding:', error.message);
+       logger.warn('Could not process image for enhanced pseudo-embedding:', error);
      }
      
      // Fallback to simple hash-based embedding
@@ -277,9 +278,9 @@ class CLIPInferenceService {
   async preloadModel() {
     try {
       await this.initializeModel();
-      console.log('CLIP model preloaded successfully');
+      logger.debug('CLIP model preloaded successfully');
     } catch (error) {
-      console.warn('Failed to preload CLIP model:', error.message);
+      logger.warn('Failed to preload CLIP model:', error);
     }
   }
 }

@@ -18,6 +18,7 @@ import {
 import { TitleBar, useAppBridge } from "@shopify/app-bridge-react";
 import { authenticate } from "../shopify.server";
 import { getVisualSearchSettings, upsertVisualSearchSettings } from "../services/visualSearchSettings.server.js";
+import logger from "../utils/logger.js";
 
 export const loader = async ({ request }) => {
   const { session } = await authenticate.admin(request);
@@ -27,7 +28,7 @@ export const loader = async ({ request }) => {
     const settings = await getVisualSearchSettings(shop);
     return json({ settings, shop });
   } catch (error) {
-    console.error('Error loading settings:', error);
+    logger.error('Error loading settings:', error);
     return json({
       settings: { hideOutOfStock: false, similarityThreshold: 0.4 },
       shop,
@@ -56,7 +57,7 @@ export const action = async ({ request }) => {
       message: 'Settings saved successfully!'
     });
   } catch (error) {
-    console.error('Error saving settings:', error);
+    logger.error('Error saving settings:', error);
     return json({
       success: false,
       error: 'Failed to save settings. Please try again.'

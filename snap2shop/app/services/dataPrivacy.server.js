@@ -4,6 +4,7 @@
  */
 
 import db from "../db.server.js";
+import logger from "../utils/logger.js";
 
 class DataPrivacyService {
   constructor() {
@@ -72,11 +73,11 @@ class DataPrivacyService {
 
       results.popularContent = contentResult.count;
 
-      console.log('Data anonymization completed:', results);
+      logger.info('Data anonymization completed:', results);
       return results;
 
     } catch (error) {
-      console.error('Error during data anonymization:', error);
+      logger.error('Error during data anonymization:', error);
       results.errors.push(error.message);
       return results;
     }
@@ -96,10 +97,10 @@ class DataPrivacyService {
         }
       });
 
-      console.log(`Deleted ${result.count} old aggregation records`);
+      logger.info(`Deleted ${result.count} old aggregation records`);
       return result.count;
     } catch (error) {
-      console.error('Error cleaning up old aggregations:', error);
+      logger.error('Error cleaning up old aggregations:', error);
       throw error;
     }
   }
@@ -154,7 +155,7 @@ class DataPrivacyService {
         }
       };
     } catch (error) {
-      console.error('Error getting data retention summary:', error);
+      logger.error('Error getting data retention summary:', error);
       throw error;
     }
   }
@@ -203,7 +204,7 @@ class DataPrivacyService {
         totalEvents: searchEvents.length + clickEvents.length
       };
     } catch (error) {
-      console.error('Error exporting user data:', error);
+      logger.error('Error exporting user data:', error);
       throw error;
     }
   }
@@ -238,7 +239,7 @@ class DataPrivacyService {
         }
       };
     } catch (error) {
-      console.error('Error deleting user data:', error);
+      logger.error('Error deleting user data:', error);
       throw error;
     }
   }
@@ -260,7 +261,7 @@ class DataPrivacyService {
 
       return count > 0;
     } catch (error) {
-      console.error('Error checking anonymization needs:', error);
+      logger.error('Error checking anonymization needs:', error);
       return false;
     }
   }
@@ -273,15 +274,15 @@ class DataPrivacyService {
       const needsCleanup = await this.needsAnonymization();
       
       if (needsCleanup) {
-        console.log('Starting scheduled data cleanup...');
+        logger.info('Starting scheduled data cleanup...');
         await this.anonymizeOldData();
         await this.cleanupOldAggregations();
-        console.log('Scheduled cleanup completed');
+        logger.info('Scheduled cleanup completed');
       } else {
-        console.log('No data cleanup needed');
+        logger.info('No data cleanup needed');
       }
     } catch (error) {
-      console.error('Error in scheduled cleanup:', error);
+      logger.error('Error in scheduled cleanup:', error);
     }
   }
 }

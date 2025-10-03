@@ -157,8 +157,14 @@ window.initVisualSearchWidget = function(blockId, config) {
   let currentSearchId = null;
   const environmentInfo = VisualSearchEnv.getInfo(config || {});
   const detectedShopDomain = environmentInfo.shopDomain || VisualSearchEnv.detectShopDomain(config);
+  const debugEnabled = Boolean((config && config.debug) || environmentInfo.isDevelopment);
+  const debug = (...args) => {
+    if (debugEnabled) {
+      console.debug(...args);
+    }
+  };
 
-  console.log('Visual Search Widget environment:', environmentInfo.environment, {
+  debug('Visual Search Widget environment:', environmentInfo.environment, {
     environmentInfo,
     shopDomain: detectedShopDomain
   });
@@ -283,9 +289,9 @@ window.initVisualSearchWidget = function(blockId, config) {
       const shopDomain = detectedShop.includes('quickstart') ? 'snap2shopdemo.myshopify.com' : detectedShop;
       
       // Debug shop domain detection
-      console.log('Detected shop domain:', shopDomain);
-      console.log('Window location:', window.location.href);
-      console.log('Shopify object:', window.Shopify);
+      debug('Detected shop domain:', shopDomain);
+      debug('Window location:', window.location.href);
+      debug('Shopify object:', window.Shopify);
       formData.append('shop', shopDomain);
 
       let response;
@@ -295,7 +301,7 @@ window.initVisualSearchWidget = function(blockId, config) {
           throw new Error('Search endpoint is not configured for this environment.');
         }
 
-        console.log('Visual Search request:', {
+        debug('Visual Search request:', {
           apiUrl,
           environment: environmentInfo.environment,
           shopDomain,
@@ -310,11 +316,11 @@ window.initVisualSearchWidget = function(blockId, config) {
           }
         });
         
-        console.log('Response received:', response.status, response.statusText);
+        debug('Response received:', response.status, response.statusText);
 
         // Read response body once
         const responseText = await response.text();
-        console.log('Response body:', responseText);
+        debug('Response body:', responseText);
         
         let data;
         try {
@@ -327,13 +333,13 @@ window.initVisualSearchWidget = function(blockId, config) {
           throw new Error(data.error || `Server error: ${response.status} ${response.statusText}`);
         }
 
-        console.log('Search results received:', data);
-        console.log('Number of results:', data.results?.length || 0);
+        debug('Search results received:', data);
+        debug('Number of results:', data.results?.length || 0);
         
         // Capture searchId from API response for click tracking
         if (data.searchId) {
           currentSearchId = data.searchId;
-          console.log('✅ Search ID captured for click tracking:', currentSearchId);
+          debug('Search ID captured for click tracking:', currentSearchId);
         }
         
         displayResults(data.results || []);
@@ -350,17 +356,19 @@ window.initVisualSearchWidget = function(blockId, config) {
             const trackedSearchId = await analyticsTracker.trackSearch(queryData, data.results || []);
             if (trackedSearchId) {
               currentSearchId = trackedSearchId;
-              console.log('✅ Analytics search tracked with ID:', currentSearchId);
+              debug('Analytics search tracked with ID:', currentSearchId);
             }
           } catch (analyticsError) {
-            console.warn('⚠️ Failed to track analytics search event:', analyticsError);
+            console.warn('Failed to track analytics search event:', analyticsError);
           }
         }
 
       } catch (parseError) {
         console.error('Search error:', parseError);
-        console.error('Response status:', response?.status);
-        console.error('Response headers:', response?.headers ? Object.fromEntries(response.headers.entries()) : 'N/A');
+        if (debugEnabled) {
+          console.error('Response status:', response?.status);
+          console.error('Response headers:', response?.headers ? Object.fromEntries(response.headers.entries()) : 'N/A');
+        }
         
         let errorDetails = parseError.message;
         
@@ -368,7 +376,7 @@ window.initVisualSearchWidget = function(blockId, config) {
       }
       
     } catch (error) {
-      console.error('Final error handler:', error);
+      console.error('Search handling failed:', error);
       
       // Track search error
       if (analyticsTracker) {
@@ -424,7 +432,7 @@ window.initVisualSearchWidget = function(blockId, config) {
         const shop = detectedShopDomain || VisualSearchEnv.detectShopDomain(config);
         const analyticsEndpoint = VisualSearchEnv.resolveEndpoint(config, 'analyticsClick');
         if (!analyticsEndpoint) {
-          console.warn('⚠️ Analytics endpoint not configured; click will not be tracked.');
+          console.warn('Analytics endpoint not configured; click will not be tracked.');
           return;
         }
 
@@ -442,12 +450,12 @@ window.initVisualSearchWidget = function(blockId, config) {
         });
         
         if (response.ok) {
-          console.log('✅ Click tracked successfully');
+          debug('Click tracked successfully');
         } else {
-          console.warn('⚠️ Click tracking failed:', response.status);
+          console.warn('Click tracking failed:', response.status);
         }
       } catch (error) {
-        console.error('❌ Click tracking error:', error);
+        console.error('Click tracking error:', error);
       }
       // Don't prevent default - let the link navigate normally
     });
@@ -498,5 +506,4 @@ if (document.readyState === 'loading') {
 
 function loadVisualSearchScript() {
   // The widget will be initialized by the Liquid template
-  console.log('Visual Search Widget script loaded');
 }

@@ -1,6 +1,7 @@
 import OpenAI from 'openai';
 import sharp from 'sharp';
 import axios from 'axios';
+import logger from '../utils/logger.js';
 
 class MLInferenceService {
   constructor() {
@@ -11,14 +12,14 @@ class MLInferenceService {
         apiKey: process.env.OPENAI_API_KEY,
       });
     } else {
-      console.warn('OpenAI API key not found. Using pseudo-embeddings for development.');
+      logger.warn('OpenAI API key not found. Using pseudo-embeddings for development.');
       this.openai = null;
     }
   }
 
   async downloadAndProcessImage(imageUrl) {
     try {
-      console.log(`Downloading image from: ${imageUrl}`);
+      logger.debug(`Downloading image from: ${imageUrl}`);
       
       const response = await axios.get(imageUrl, {
         responseType: 'arraybuffer',
@@ -33,7 +34,7 @@ class MLInferenceService {
 
       return processedImage;
     } catch (error) {
-      console.error('Error downloading/processing image:', error.message);
+      logger.error('Error downloading/processing image:', error.message);
       throw new Error(`Failed to process image: ${error.message}`);
     }
   }
@@ -41,7 +42,7 @@ class MLInferenceService {
   async generateEmbedding(imageUrl) {
     // Use pseudo-embeddings if OpenAI is not available
     if (!this.hasOpenAI || !this.openai) {
-      console.log('Using pseudo-embedding for development...');
+      logger.debug('Using pseudo-embedding for development...');
       return this.generatePseudoEmbedding(imageUrl);
     }
 
@@ -82,8 +83,8 @@ class MLInferenceService {
 
       const embedding = embeddingResponse.data[0].embedding;
       
-      console.log(`Generated embedding for image: ${imageUrl.substring(0, 50)}...`);
-      console.log(`Description: ${description.substring(0, 100)}...`);
+      logger.debug(`Generated embedding for image: ${imageUrl.substring(0, 50)}...`);
+      logger.debug(`Description: ${description.substring(0, 100)}...`);
       
       return {
         embedding,
@@ -91,11 +92,11 @@ class MLInferenceService {
         modelName: "gpt-4-vision + text-embedding-3-small"
       };
     } catch (error) {
-      console.error('Error generating embedding:', error.message);
+      logger.error('Error generating embedding:', error.message);
       
       // Fallback: generate a simple hash-based pseudo-embedding for development
       if (error.message.includes('API key') || error.message.includes('quota')) {
-        console.log('Falling back to pseudo-embedding for development...');
+        logger.debug('Falling back to pseudo-embedding for development...');
         return this.generatePseudoEmbedding(imageUrl);
       }
       

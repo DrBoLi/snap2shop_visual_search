@@ -20,9 +20,16 @@ class AnalyticsTracker {
     this.baseUrl = (envHelpers && envHelpers.resolveEndpoint(config, 'analyticsBase')) || baseUrlOverride || '/apps/proxy';
     this.analyticsTrackEndpoint = (envHelpers && envHelpers.resolveEndpoint(config, 'analyticsTrack')) || trackUrlOverride || `${this.baseUrl}/analytics/track`;
     this.environmentInfo = envInfo;
+    this.debugEnabled = Boolean(config.debug || envInfo?.isDevelopment);
 
     if (!this.shop) {
       console.warn('[Visual Search] AnalyticsTracker missing shop domain; events will be skipped');
+    }
+  }
+
+  debug(...args) {
+    if (this.debugEnabled) {
+      console.debug(...args);
     }
   }
 
@@ -64,7 +71,7 @@ class AnalyticsTracker {
       }
     };
 
-    console.log('[Visual Search] Tracking analytics event', {
+    this.debug('[Visual Search] Tracking analytics event', {
       eventType,
       endpoint: this.analyticsTrackEndpoint,
       payload
@@ -231,4 +238,3 @@ class AnalyticsTracker {
 
 // Export for use in other scripts
 window.AnalyticsTracker = AnalyticsTracker;
-

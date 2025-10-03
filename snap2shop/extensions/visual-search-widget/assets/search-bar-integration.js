@@ -153,6 +153,12 @@
       this.errorHandler = null;
       this.environmentInfo = VisualSearchEnv.getInfo(this.config);
       this.shopDomain = this.environmentInfo.shopDomain || VisualSearchEnv.detectShopDomain(this.config);
+      this.debugEnabled = Boolean((this.config && this.config.debug) || this.environmentInfo.isDevelopment);
+      this.debug = (...args) => {
+        if (this.debugEnabled) {
+          console.debug(...args);
+        }
+      };
       
       // Multiple selector strategy for theme compatibility
       this.searchSelectors = [
@@ -189,12 +195,12 @@
     setup() {
       if (this.initialized) return;
       
-      console.log('[Visual Search] Initializing search bar integration');
+      this.debug('[Visual Search] Initializing search bar integration');
 
       // Refresh environment info in case host/context changed after load
       this.environmentInfo = VisualSearchEnv.getInfo(this.config);
       this.shopDomain = this.environmentInfo.shopDomain || VisualSearchEnv.detectShopDomain(this.config);
-      console.log(`[Visual Search] Environment detected: ${this.environmentInfo.environment}`, {
+      this.debug(`[Visual Search] Environment detected: ${this.environmentInfo.environment}`, {
         environmentInfo: this.environmentInfo,
         shopDomain: this.shopDomain
       });
@@ -247,7 +253,7 @@
         }
       });
 
-      console.log(`[Visual Search] Found ${this.searchInputs.length} search inputs`);
+      this.debug(`[Visual Search] Found ${this.searchInputs.length} search inputs`);
     }
 
     looksLikeSearchInput(input) {
@@ -405,7 +411,7 @@
 
     positionCameraIconInside(cameraButton, container) {
       // Position on the right side of the search bar
-      console.log('[Visual Search] Positioning camera icon on the right side');
+      this.debug('[Visual Search] Positioning camera icon on the right side');
       
       cameraButton.style.cssText = `
         position: absolute;
@@ -511,13 +517,13 @@
       button.addEventListener('click', (e) => {
         e.preventDefault();
         e.stopPropagation();
-        console.log('[Visual Search] Camera button clicked!');
+        this.debug('[Visual Search] Camera button clicked!');
         
         // Debug modal existence
-        console.log('[Visual Search] Modal exists:', !!this.modal);
+        this.debug('[Visual Search] Modal exists:', !!this.modal);
         if (this.modal) {
-          console.log('[Visual Search] Modal element:', this.modal);
-          console.log('[Visual Search] Modal display:', this.modal.style.display);
+          this.debug('[Visual Search] Modal element:', this.modal);
+          this.debug('[Visual Search] Modal display:', this.modal.style.display);
         }
         
         this.openModal();
@@ -538,11 +544,11 @@
       // Check if modal already exists
       if (document.getElementById(this.modalId)) {
         this.modal = document.getElementById(this.modalId);
-        console.log('[Visual Search] Using existing modal:', this.modal);
+        this.debug('[Visual Search] Using existing modal:', this.modal);
         return;
       }
       
-      console.log('[Visual Search] Creating new modal...');
+      this.debug('[Visual Search] Creating new modal...');
       
       // Create modal container
       const modal = document.createElement('div');
@@ -657,8 +663,8 @@
       document.body.appendChild(modal);
       this.modal = modal;
       
-      console.log('[Visual Search] Modal created and added to DOM:', this.modal);
-      console.log('[Visual Search] Modal is in DOM:', document.body.contains(this.modal));
+      this.debug('[Visual Search] Modal created and added to DOM:', this.modal);
+      this.debug('[Visual Search] Modal is in DOM:', document.body.contains(this.modal));
     }
 
     bindEvents() {
@@ -858,7 +864,7 @@
         // For local testing without Shopify proxy, use direct route
         const apiUrl = VisualSearchEnv.resolveEndpoint(this.config, 'searchImage');
         const environment = this.environmentInfo?.environment || VisualSearchEnv.detectEnvironment(this.config);
-        console.log('[Visual Search] Searching with URL:', apiUrl, 'environment:', environment, 'shop:', shopDomain);
+        this.debug('[Visual Search] Searching with URL:', apiUrl, 'environment:', environment, 'shop:', shopDomain);
 
         if (!apiUrl) {
           console.error('[Visual Search] Unable to resolve API endpoint for search');
@@ -912,7 +918,7 @@
           // Check if processing is needed
           const needsProcessing = await processor.needsProcessing(file);
           if (!needsProcessing) {
-            console.log('[Visual Search] Image already optimized, skipping processing');
+            this.debug('[Visual Search] Image already optimized, skipping processing');
             return file;
           }
           
@@ -1006,7 +1012,7 @@
     }
 
     openModal() {
-      console.log('[Visual Search] openModal called');
+      this.debug('[Visual Search] openModal called');
     
       if (!this.modal) {
         console.error('[Visual Search] Modal not found! Creating it now...');
@@ -1032,7 +1038,7 @@
         if (modalContent) modalContent.focus();
       }, 100);
     
-      console.log('[Visual Search] Modal opened and forced to top');
+      this.debug('[Visual Search] Modal opened and forced to top');
     }
     
     hideCompetingElements() {
@@ -1120,7 +1126,7 @@
       this.modal.style.isolation = 'isolate';
       this.modal.style.display = 'block';
     
-      console.log('[Visual Search] Modal forced to top of DOM');
+      this.debug('[Visual Search] Modal forced to top of DOM');
     }
 
     closeModal() {
@@ -1209,7 +1215,7 @@
     showProcessingFeedback(show) {
       // This would show/hide processing feedback UI
       // Implementation depends on your UI design
-      console.log('[Visual Search] Processing feedback:', show ? 'show' : 'hide');
+      this.debug('[Visual Search] Processing feedback:', show ? 'show' : 'hide');
     }
 
     observeDOM() {
@@ -1254,7 +1260,7 @@
         });
         
         if (shouldRescan) {
-          console.log('[Visual Search] DOM changes detected, rescanning for search inputs...');
+          this.debug('[Visual Search] DOM changes detected, rescanning for search inputs...');
           // Use a shorter delay to catch dynamic overlays faster
           setTimeout(() => {
             this.findSearchInputs();
@@ -1286,7 +1292,7 @@
         if (target && target.tagName === 'INPUT' && 
             (target.type === 'search' || target.type === 'text') &&
             this.looksLikeSearchInput(target)) {
-          console.log('[Visual Search] Search input clicked, scheduling rescan...');
+          this.debug('[Visual Search] Search input clicked, scheduling rescan...');
           // Give the overlay time to appear
           setTimeout(() => {
             this.findSearchInputs();
@@ -1301,7 +1307,7 @@
         if (target && target.tagName === 'INPUT' && 
             (target.type === 'search' || target.type === 'text') &&
             this.looksLikeSearchInput(target)) {
-          console.log('[Visual Search] Search input focused, scheduling rescan...');
+          this.debug('[Visual Search] Search input focused, scheduling rescan...');
           setTimeout(() => {
             this.findSearchInputs();
             this.injectCameraIcons();

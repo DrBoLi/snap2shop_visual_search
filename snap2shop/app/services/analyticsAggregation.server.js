@@ -4,6 +4,7 @@
  */
 
 import db from "../db.server.js";
+import logger from "../utils/logger.js";
 
 class AnalyticsAggregationService {
   constructor() {
@@ -96,7 +97,7 @@ class AnalyticsAggregationService {
         clicksByType: clickStats
       };
     } catch (error) {
-      console.error('Error aggregating daily analytics:', error);
+      logger.error('Error aggregating daily analytics:', error);
       throw error;
     }
   }
@@ -187,7 +188,7 @@ class AnalyticsAggregationService {
         ...additionalMetrics
       };
     } catch (error) {
-      console.error('Error getting dashboard data:', error);
+      logger.error('Error getting dashboard data:', error);
       throw error;
     }
   }
@@ -301,7 +302,7 @@ class AnalyticsAggregationService {
         }
       };
     } catch (error) {
-      console.error('Error getting additional metrics:', error);
+      logger.error('Error getting additional metrics:', error);
       return {
         popularKeywordsClicks: { total: 0, chart: [] },
         popularCollectionsClicks: { total: 0, chart: [] },
@@ -353,9 +354,9 @@ class AnalyticsAggregationService {
         }
       });
 
-      console.log('Anonymized old analytics data');
+      logger.info('Anonymized old analytics data');
     } catch (error) {
-      console.error('Error anonymizing old data:', error);
+      logger.error('Error anonymizing old data:', error);
     }
   }
 

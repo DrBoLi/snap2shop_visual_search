@@ -25,7 +25,9 @@ import {
 import { TitleBar, useAppBridge } from "@shopify/app-bridge-react";
 import { LineChart, PolarisVizProvider } from "@shopify/polaris-viz";
 import "@shopify/polaris-viz/build/esm/styles.css";
+import "../styles/homepage.css";
 import { authenticate } from "../shopify.server";
+import logger from "../utils/logger.js";
 import {
   resolveDashboardShop,
   getDashboardMetrics,
@@ -50,7 +52,7 @@ export const loader = async ({ request }) => {
       shop: resolvedShop,
     });
   } catch (error) {
-    console.error('Error loading dashboard data:', error);
+    logger.error('Error loading dashboard data:', error);
     return json({
       analytics: {
         imageSearchVolume: 0,
@@ -132,9 +134,9 @@ export default function Index() {
   const fetchAnalytics = useCallback(async (selectedTimeframe) => {
     setLoading(true);
     try {
-      console.log(`🔄 Fetching analytics for timeframe: ${selectedTimeframe}`);
+      logger.debug(`Fetching analytics for timeframe: ${selectedTimeframe}`);
       const response = await fetch(`/api/analytics-dashboard-simple?timeframe=${selectedTimeframe}`);
-      console.log(`📡 Response status: ${response.status}`);
+      logger.debug('Analytics response status:', response.status);
       
       if (response.ok) {
         const data = await response.json();
@@ -144,13 +146,13 @@ export default function Index() {
           clickThroughRate: data.clickThroughRate,
         });
         setDailyMetrics(data.dailyMetrics || []);
-        console.log('✅ Analytics updated:', data);
+        logger.debug('Analytics payload received', data);
       } else {
         const errorText = await response.text();
-        console.error('❌ Failed to fetch analytics data:', response.status, errorText);
+        logger.error('Failed to fetch analytics data:', response.status, errorText);
       }
     } catch (error) {
-      console.error('❌ Error fetching analytics data:', error);
+      logger.error('Error fetching analytics data:', error);
     } finally {
       setLoading(false);
     }
@@ -158,20 +160,16 @@ export default function Index() {
 
   // Initial fetch on mount
   useEffect(() => {
-    console.log('🚀 Starting initial analytics fetch...');
     fetchAnalytics(timeframe);
   }, []);
 
   // Polling effect for real-time updates
   useEffect(() => {
-    console.log('🔄 Setting up polling interval...');
     const interval = setInterval(() => {
-      console.log('⏰ Polling analytics...');
       fetchAnalytics(timeframe);
     }, 5000); // Poll every 5 seconds
 
     return () => {
-      console.log('🛑 Clearing polling interval...');
       clearInterval(interval);
     };
   }, [timeframe]); // Remove fetchAnalytics dependency to avoid constant recreation
@@ -207,97 +205,231 @@ export default function Index() {
       {/* Hero Banner Section */}
       <Box paddingBlockEnd="600">
         <Card>
-          <div style={{
-            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-            padding: '80px 40px',
-            borderRadius: '8px',
-            color: 'white',
-            textAlign: 'center'
-          }}>
-            <Layout>
-              <Layout.Section>
-                <BlockStack gap="500" align="center">
-                  <Box paddingBlockEnd="200">
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '20px' }}>
-                      <img 
-                        src="/snap2shop-logo.jpg" 
-                        alt="Snap2Shop Logo" 
-                        style={{ 
-                          height: '100px', 
-                          width: 'auto',
-                          borderRadius: '12px',
-                          boxShadow: '0 8px 32px rgba(0,0,0,0.2)'
-                        }} 
-                      />
-                      <Text as="h1" variant="heading2xl" alignment="center" style={{ color: 'white', margin: 0, fontSize: '3.5rem' }}>
-                        Snap2Shop
-                      </Text>
-                    </div>
-                  </Box>
-                  <Text as="h2" variant="headingXl" alignment="center" style={{ color: 'white', fontSize: '2.8rem', fontWeight: '600' }}>
-                    Bring visual discovery to your storefront
-                  </Text>
-                  <Text as="p" variant="bodyLg" alignment="center" style={{ color: 'rgba(255,255,255,0.9)', maxWidth: '800px', fontSize: '1.4rem', lineHeight: '1.7', margin: '0 auto' }}>
-                    Snap2Shop helps shoppers find the right products faster with AI-powered visual search. Transform your customers' shopping experience with intelligent image recognition that connects them to exactly what they're looking for. 
-                    Add visual search to your online store, tailor the search experience, and monitor 
-                    performance with built-in analytics.
-                  </Text>
-                </BlockStack>
-              </Layout.Section>
-            </Layout>
+          <div className="hero-section hero-gradient-bg">
+            {/* Animated background elements */}
+            <div className="animated-blobs">
+              <div className="blob blob-1"></div>
+              <div className="blob blob-2"></div>
+              <div className="blob blob-3"></div>
+            </div>
+
+            <div className="hero-content">
+              {/* Logo */}
+              <div className="hero-logo-container">
+                <img
+                  src="/snap2shop-logo-2.png"
+                  alt="Snap2Shop Logo"
+                  className="hero-logo"
+                />
+              </div>
+
+              {/* Badge */}
+              <div className="hero-badge">
+                <span style={{ fontSize: '16px' }}>✨</span>
+                <span>AI-Powered Visual Search</span>
+              </div>
+
+              {/* Heading */}
+              <h2 className="hero-heading">
+                Bring Visual Discovery to Your Storefront
+              </h2>
+
+              {/* Description */}
+              <p className="hero-description">
+                Snap2Shop helps shoppers find the right products faster with AI-powered visual search.
+                Add visual search to your online store, tailor the search experience, and monitor performance
+                with built-in analytics.
+              </p>
+
+              {/* Stats */}
+              <div className="hero-stats">
+                <div className="hero-stat">
+                  <div className="hero-stat-value">98%</div>
+                  <div className="hero-stat-label">Accuracy</div>
+                </div>
+                <div className="hero-stat hero-stat-divider">
+                  <div className="hero-stat-value">&lt;2s</div>
+                  <div className="hero-stat-label">Search Time</div>
+                </div>
+                <div className="hero-stat">
+                  <div className="hero-stat-value">24/7</div>
+                  <div className="hero-stat-label">Support</div>
+                </div>
+              </div>
+            </div>
           </div>
         </Card>
       </Box>
 
       <BlockStack gap="600">
-        {/* Quick Features Overview */}
-        <Layout>
-          <Layout.Section>
-            <Card>
-              <Box padding="500">
-                <BlockStack gap="500">
-                  <Text as="h2" variant="headingXl">
-                    What visual search unlocks
-                  </Text>
-                  <BlockStack gap="300">
-                    <FeatureRow
-                      heading="AI-powered image recognition"
-                      copy="Snap2Shop matches shopper-uploaded images with your catalog to surface the closest product results."
-                    />
-                    <Divider />
-                    <FeatureRow
-                      heading="Faster merchandising"
-                      copy="Highlight collections or hero products directly in the visual search modal to guide discovery."
-                    />
-                    <Divider />
-                    <FeatureRow
-                      heading="Actionable analytics"
-                      copy="Track search volume, click rates, and search box engagement from the integrated dashboard."
-                    />
-                  </BlockStack>
-                </BlockStack>
-              </Box>
-            </Card>
-          </Layout.Section>
-        </Layout>
+        {/* Features Overview */}
+        <div className="features-section">
+          <div className="features-header">
+            <div className="features-badge">
+              ✨ Features
+            </div>
+            <Text as="h2" variant="heading2xl" alignment="center">
+              Everything You Need to Succeed
+            </Text>
+            <Box paddingBlockStart="300">
+              <Text as="p" variant="bodyLg" alignment="center" tone="subdued">
+                Powerful features designed to increase conversions and delight your customers
+              </Text>
+            </Box>
+          </div>
+
+          <div className="features-grid">
+            <div className="feature-card">
+              <Card>
+                <Box padding="500">
+                  <div className="feature-icon gradient-purple-pink">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"></path>
+                      <circle cx="12" cy="13" r="3"></circle>
+                    </svg>
+                  </div>
+                  <Text as="h3" variant="headingMd">Visual Search</Text>
+                  <Box paddingBlockStart="200">
+                    <Text as="p" variant="bodyMd" tone="subdued">
+                      Let customers snap photos to find products instantly. AI identifies items and suggests perfect matches.
+                    </Text>
+                  </Box>
+                </Box>
+              </Card>
+            </div>
+
+            <div className="feature-card">
+              <Card>
+                <Box padding="500">
+                  <div className="feature-icon gradient-orange-pink">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+                    </svg>
+                  </div>
+                  <Text as="h3" variant="headingMd">Lightning Fast</Text>
+                  <Box paddingBlockStart="200">
+                    <Text as="p" variant="bodyMd" tone="subdued">
+                      Search results in under 2 seconds. Optimized for performance and user experience.
+                    </Text>
+                  </Box>
+                </Box>
+              </Card>
+            </div>
+
+            <div className="feature-card">
+              <Card>
+                <Box padding="500">
+                  <div className="feature-icon gradient-pink-purple">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <line x1="18" y1="20" x2="18" y2="10"></line>
+                      <line x1="12" y1="20" x2="12" y2="4"></line>
+                      <line x1="6" y1="20" x2="6" y2="14"></line>
+                    </svg>
+                  </div>
+                  <Text as="h3" variant="headingMd">Built-in Analytics</Text>
+                  <Box paddingBlockStart="200">
+                    <Text as="p" variant="bodyMd" tone="subdued">
+                      Track search patterns, popular products, and conversion rates with comprehensive dashboards.
+                    </Text>
+                  </Box>
+                </Box>
+              </Card>
+            </div>
+
+            <div className="feature-card">
+              <Card>
+                <Box padding="500">
+                  <div className="feature-icon gradient-blue-purple">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M12 19l7-7 3 3-7 7-3-3z"></path>
+                      <path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"></path>
+                      <path d="M2 2l7.586 7.586"></path>
+                      <circle cx="11" cy="11" r="2"></circle>
+                    </svg>
+                  </div>
+                  <Text as="h3" variant="headingMd">Customizable UI</Text>
+                  <Box paddingBlockStart="200">
+                    <Text as="p" variant="bodyMd" tone="subdued">
+                      Match your brand perfectly with flexible theming and customization options.
+                    </Text>
+                  </Box>
+                </Box>
+              </Card>
+            </div>
+
+            <div className="feature-card">
+              <Card>
+                <Box padding="500">
+                  <div className="feature-icon gradient-purple-blue">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                      <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                    </svg>
+                  </div>
+                  <Text as="h3" variant="headingMd">Secure & Private</Text>
+                  <Box paddingBlockStart="200">
+                    <Text as="p" variant="bodyMd" tone="subdued">
+                      Enterprise-grade security with full GDPR compliance and data protection.
+                    </Text>
+                  </Box>
+                </Box>
+              </Card>
+            </div>
+
+            <div className="feature-card">
+              <Card>
+                <Box padding="500">
+                  <div className="feature-icon gradient-pink-orange">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect>
+                      <line x1="12" y1="18" x2="12.01" y2="18"></line>
+                    </svg>
+                  </div>
+                  <Text as="h3" variant="headingMd">Mobile Optimized</Text>
+                  <Box paddingBlockStart="200">
+                    <Text as="p" variant="bodyMd" tone="subdued">
+                      Perfect experience on any device. Responsive design that works everywhere.
+                    </Text>
+                  </Box>
+                </Box>
+              </Card>
+            </div>
+          </div>
+        </div>
 
         {/* Product Synchronization Section */}
         <Card>
           <Box padding="500">
             <BlockStack gap="500">
-              <Text as="h2" variant="headingXl">
-                Product Synchronization
-              </Text>
+              <div>
+                <div className="step-badge">Step 1</div>
+                <Text as="h2" variant="headingXl">
+                  Product Sync
+                </Text>
+              </div>
               <Text as="p" variant="bodyMd">
-                Sync your product catalog to enable visual search functionality. 
+                Sync your product catalog to enable visual search functionality.
                 This will import your products and their images for processing.
               </Text>
 
-              {hasError && (
-                <Banner status="critical">
-                  <p>Sync failed: {syncStatus.errorMessage}</p>
-                </Banner>
-              )}
+              {/* Instructions Box */}
+              <div className="instruction-box">
+                <h4 className="instruction-title">Instructions</h4>
+                <ul className="instruction-list">
+                  <li className="instruction-item">
+                    <span className="instruction-number">1.</span>
+                    <span>Click "Start Sync" or "Retry Sync" to initiate the product synchronization process</span>
+                  </li>
+                  <li className="instruction-item">
+                    <span className="instruction-number">2.</span>
+                    <span>Monitor the sync status card for real-time progress updates</span>
+                  </li>
+                  <li className="instruction-item">
+                    <span className="instruction-number">3.</span>
+                    <span>Once complete, your products will be ready for visual search</span>
+                  </li>
+                </ul>
+              </div>
 
               {isSyncing && (
                 <BlockStack gap="300">
@@ -308,7 +440,7 @@ export default function Index() {
                 </BlockStack>
               )}
 
-              {isCompleted && syncStatus.lastSync && (
+              {isCompleted && syncStatus.lastSync && !hasError && (
                 <Banner status="success">
                   <p>
                     Last sync completed on{" "}
@@ -327,7 +459,7 @@ export default function Index() {
                       disabled={isSyncing}
                       onClick={handleSync}
                     >
-                      {isSyncing ? "Syncing..." : hasError ? "Retry Sync" : "Start Sync"}
+                      {isSyncing ? "Syncing..." : "Start Sync"}
                     </Button>
 
                     {(isCompleted || hasError) && (
@@ -342,33 +474,46 @@ export default function Index() {
                   </InlineStack>
                 </Layout.Section>
                 <Layout.Section variant="oneThird">
-                  <BlockStack gap="300">
-                    <Text as="h3" variant="headingMd">
-                      Sync Status
-                    </Text>
-                    <BlockStack gap="200">
-                      <InlineStack align="space-between">
-                        <Text as="span" variant="bodyMd">Status</Text>
-                        <Text as="span" variant="bodyMd" fontWeight="semibold">
-                          {syncStatus?.status || "Loading..."}
+                  <div className="sync-status-card">
+                    <Box padding="400">
+                      <BlockStack gap="300">
+                        <Text as="h3" variant="headingMd">
+                          Sync Status
                         </Text>
-                      </InlineStack>
-                      <InlineStack align="space-between">
-                        <Text as="span" variant="bodyMd">Progress</Text>
-                        <Text as="span" variant="bodyMd" fontWeight="semibold">
-                          {syncStatus?.progress || 0} / {syncStatus?.totalItems || 0}
-                        </Text>
-                      </InlineStack>
-                      {syncStatus?.lastSync && (
-                        <InlineStack align="space-between">
-                          <Text as="span" variant="bodyMd">Last Sync</Text>
-                          <Text as="span" variant="bodyMd" fontWeight="semibold">
-                            {new Date(syncStatus.lastSync).toLocaleDateString()}
-                          </Text>
-                        </InlineStack>
-                      )}
-                    </BlockStack>
-                  </BlockStack>
+                        <BlockStack gap="200">
+                          <InlineStack align="space-between">
+                            <Text as="span" variant="bodyMd">Status</Text>
+                            <Text as="span" variant="bodyMd" fontWeight="semibold">
+                              {syncStatus?.status || "Not started"}
+                            </Text>
+                          </InlineStack>
+                          {(isSyncing || isCompleted) && (
+                            <InlineStack align="space-between">
+                              <Text as="span" variant="bodyMd">Progress</Text>
+                              <Text as="span" variant="bodyMd" fontWeight="semibold">
+                                {syncStatus?.progress || 0} / {syncStatus?.totalItems || 0}
+                              </Text>
+                            </InlineStack>
+                          )}
+                          {syncStatus?.lastSync && (
+                            <InlineStack align="space-between">
+                              <Text as="span" variant="bodyMd">Last Sync</Text>
+                              <Text as="span" variant="bodyMd" fontWeight="semibold">
+                                {new Date(syncStatus.lastSync).toLocaleDateString()}
+                              </Text>
+                            </InlineStack>
+                          )}
+                          {hasError && syncStatus?.errorMessage && (
+                            <Box paddingBlockStart="200">
+                              <Banner status="critical">
+                                <p>{syncStatus.errorMessage}</p>
+                              </Banner>
+                            </Box>
+                          )}
+                        </BlockStack>
+                      </BlockStack>
+                    </Box>
+                  </div>
                 </Layout.Section>
               </Layout>
 
@@ -378,20 +523,32 @@ export default function Index() {
                 <Text as="h3" variant="headingMd">
                   What happens during sync?
                 </Text>
-                <BlockStack gap="200">
-                  <Text as="p" variant="bodyMd">
-                    • Fetches all products from your store
-                  </Text>
-                  <Text as="p" variant="bodyMd">
-                    • Downloads product images securely
-                  </Text>
-                  <Text as="p" variant="bodyMd">
-                    • Stores metadata for search functionality
-                  </Text>
-                  <Text as="p" variant="bodyMd">
-                    • Prepares data for visual search processing
-                  </Text>
-                </BlockStack>
+                <ul className="sync-process-list">
+                  <li className="sync-process-item">
+                    <div className="sync-dot dot-purple-pink"></div>
+                    <Text as="span" variant="bodyMd" tone="subdued">
+                      Fetches all products from your store
+                    </Text>
+                  </li>
+                  <li className="sync-process-item">
+                    <div className="sync-dot dot-pink-orange"></div>
+                    <Text as="span" variant="bodyMd" tone="subdued">
+                      Downloads product images securely
+                    </Text>
+                  </li>
+                  <li className="sync-process-item">
+                    <div className="sync-dot dot-blue-purple"></div>
+                    <Text as="span" variant="bodyMd" tone="subdued">
+                      Stores metadata for search functionality
+                    </Text>
+                  </li>
+                  <li className="sync-process-item">
+                    <div className="sync-dot dot-orange-pink"></div>
+                    <Text as="span" variant="bodyMd" tone="subdued">
+                      Prepares data for visual search processing
+                    </Text>
+                  </li>
+                </ul>
               </BlockStack>
 
               <Divider />
@@ -425,10 +582,21 @@ export default function Index() {
         <Card>
           <Box padding="500">
             <BlockStack gap="500">
+              <div>
+                <div className="step-badge step-badge-blue">Step 2</div>
+                <Text as="h2" variant="headingXl">
+                  Data Analytics
+                </Text>
+              </div>
+              <Text as="p" variant="bodyMd">
+                Track visual search performance with real-time analytics. Monitor customer engagement,
+                search patterns, and conversion metrics to optimize your product discovery experience.
+              </Text>
+
               <InlineStack align="space-between" blockAlign="center">
-                <Text as="h2" variant="headingXl">Analytics Dashboard</Text>
+                <Text as="h3" variant="headingMd">Performance Overview</Text>
                 <InlineStack gap="200" blockAlign="center">
-                  <Button 
+                  <Button
                     onClick={() => fetchAnalytics(timeframe)}
                     loading={loading}
                     size="slim"
@@ -557,7 +725,7 @@ function PerformanceCard({ analytics, dailyMetrics, loading }) {
       </InlineStack>
 
       {hasData ? (
-        <div style={{ height: 320 }}>
+        <div className="chart-container" style={{ height: 320 }}>
           {isClient ? (
             <PolarisVizProvider animated>
               <LineChart
@@ -587,11 +755,13 @@ function PerformanceCard({ analytics, dailyMetrics, loading }) {
         </Text>
       )}
 
-      <Text tone="subdued" variant="bodySm">
-        Customers performed {totals.imageSearchVolume.toLocaleString()} image searches and
-        clicked {totals.imageSearchClicks.toLocaleString()} results in this period. The
-        overall click-through rate was {totals.clickThroughRate.toFixed(1)}%.
-      </Text>
+      <div className="chart-description">
+        <Text as="p" variant="bodySm" tone="subdued">
+          Customers performed {totals.imageSearchVolume.toLocaleString()} image searches and
+          clicked {totals.imageSearchClicks.toLocaleString()} results in this period. The
+          overall click-through rate was {totals.clickThroughRate.toFixed(1)}%.
+        </Text>
+      </div>
     </BlockStack>
   );
 }

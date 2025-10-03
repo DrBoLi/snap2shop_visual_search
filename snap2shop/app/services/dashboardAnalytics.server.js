@@ -1,4 +1,5 @@
 import db from "../db.server.js";
+import logger from "../utils/logger.js";
 
 export async function resolveDashboardShop(preferredShop) {
   let shop = preferredShop;
@@ -88,7 +89,7 @@ export function getDateRange(timeframe) {
 
   startDate.setUTCHours(0, 0, 0, 0);
 
-  console.log(`📅 Date range (UTC): ${startDate.toISOString().slice(0, 10)} to ${endDate.toISOString().slice(0, 10)}`);
+  logger.debug(`Date range (UTC): ${startDate.toISOString().slice(0, 10)} to ${endDate.toISOString().slice(0, 10)}`);
 
   return { startDate, endDate };
 }

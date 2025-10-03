@@ -1,0 +1,480 @@
+/* Snap2Shop Homepage Custom Styling */
+
+/* Color Variables from Figma Design */
+:root {
+  --gradient-purple: #667eea;
+  --gradient-purple-dark: #764ba2;
+  --gradient-pink: #ec4899;
+  --gradient-orange: #f97316;
+  --gradient-blue: #3b82f6;
+  --color-yellow-300: #fde047;
+  --color-white: #ffffff;
+  --color-gray-50: #f9fafb;
+  --color-gray-100: #f3f4f6;
+  --color-gray-200: #e5e7eb;
+  --color-gray-300: #d1d5db;
+  --color-blue-50: #eff6ff;
+  --color-blue-100: #dbeafe;
+  --color-blue-600: #2563eb;
+  --color-blue-900: #1e3a8a;
+  --color-purple-50: #faf5ff;
+  --color-purple-100: #f3e8ff;
+  --color-purple-500: #a855f7;
+  --color-purple-600: #9333ea;
+  --color-pink-50: #fdf2f8;
+  --color-pink-100: #fce7f3;
+  --color-pink-500: #ec4899;
+  --color-orange-50: #fff7ed;
+  --color-cyan-500: #06b6d4;
+}
+
+/* Animations */
+@keyframes pulse-blob {
+  0%, 100% {
+    opacity: 0.2;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.3;
+    transform: scale(1.05);
+  }
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+/* Hero Section Styles */
+.hero-section {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(135deg, var(--gradient-purple) 0%, var(--gradient-purple-dark) 100%);
+  border-radius: 8px;
+  padding: 80px 40px;
+  margin-bottom: 24px;
+}
+
+.hero-gradient-bg {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(135deg, var(--gradient-purple) 0%, var(--gradient-pink) 50%, var(--gradient-orange) 100%);
+}
+
+/* Animated Blob Backgrounds */
+.animated-blobs {
+  position: absolute;
+  inset: 0;
+  opacity: 0.2;
+  pointer-events: none;
+}
+
+.blob {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(64px);
+  animation: pulse-blob 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.blob-1 {
+  top: 80px;
+  left: 40px;
+  width: 288px;
+  height: 288px;
+  background: var(--color-blue-400, #60a5fa);
+}
+
+.blob-2 {
+  bottom: 80px;
+  right: 40px;
+  width: 384px;
+  height: 384px;
+  background: var(--color-orange-300, #fdba74);
+  animation-delay: 1s;
+}
+
+.blob-3 {
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 320px;
+  height: 320px;
+  background: var(--color-pink-400, #f472b6);
+  animation-delay: 0.5s;
+}
+
+/* Hero Content */
+.hero-content {
+  position: relative;
+  z-index: 10;
+  text-align: center;
+}
+
+.hero-logo-container {
+  margin-bottom: 32px;
+  animation: float 3s ease-in-out infinite;
+}
+
+.hero-logo {
+  width: 320px;
+  height: auto;
+  max-width: 100%;
+  filter: drop-shadow(0 25px 25px rgba(0, 0, 0, 0.15));
+}
+
+.hero-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(8px);
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 14px;
+  margin-bottom: 24px;
+}
+
+.hero-heading {
+  color: white;
+  font-size: 3.5rem;
+  font-weight: 600;
+  line-height: 1.2;
+  margin-bottom: 24px;
+  max-width: 1200px;
+  margin-left: auto;
+  margin-right: auto;
+  white-space: nowrap;
+}
+
+.hero-description {
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 1.4rem;
+  line-height: 1.7;
+  margin-bottom: 40px;
+  max-width: 800px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* Hero Stats */
+.hero-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 32px;
+  margin-top: 64px;
+  max-width: 768px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.hero-stat {
+  text-align: center;
+}
+
+.hero-stat-divider {
+  border-left: 1px solid rgba(255, 255, 255, 0.3);
+  border-right: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.hero-stat-value {
+  color: white;
+  font-size: 3rem;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.hero-stat-label {
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 1rem;
+}
+
+/* Features Section */
+.features-section {
+  padding: 48px 0;
+}
+
+.features-header {
+  text-align: center;
+  margin-bottom: 64px;
+}
+
+.features-badge {
+  display: inline-block;
+  padding: 8px 16px;
+  background: linear-gradient(to right, var(--color-purple-100), var(--color-pink-100));
+  color: var(--color-purple-600);
+  border-radius: 9999px;
+  font-size: 14px;
+  margin-bottom: 16px;
+}
+
+.features-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 24px;
+}
+
+@media (min-width: 768px) {
+  .features-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 1024px) {
+  .features-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.feature-card {
+  transition: all 0.3s ease;
+  cursor: pointer;
+}
+
+.feature-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+}
+
+.feature-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 16px;
+  transition: transform 0.3s ease;
+}
+
+.feature-card:hover .feature-icon {
+  transform: scale(1.1);
+}
+
+.feature-icon svg {
+  width: 24px;
+  height: 24px;
+  color: white;
+}
+
+.gradient-purple-pink {
+  background: linear-gradient(135deg, var(--color-purple-500), var(--color-pink-500));
+}
+
+.gradient-orange-pink {
+  background: linear-gradient(135deg, var(--gradient-orange), var(--color-pink-500));
+}
+
+.gradient-pink-purple {
+  background: linear-gradient(135deg, var(--color-pink-500), var(--color-purple-500));
+}
+
+.gradient-blue-purple {
+  background: linear-gradient(135deg, var(--gradient-blue), var(--color-purple-500));
+}
+
+.gradient-purple-blue {
+  background: linear-gradient(135deg, var(--color-purple-500), var(--gradient-blue));
+}
+
+.gradient-pink-orange {
+  background: linear-gradient(135deg, var(--color-pink-500), var(--gradient-orange));
+}
+
+/* Section with Step Badge */
+.step-section {
+  margin-bottom: 48px;
+}
+
+.step-badge {
+  display: inline-block;
+  padding: 4px 12px;
+  background: linear-gradient(to right, var(--color-purple-100), var(--color-pink-100));
+  color: var(--color-purple-600);
+  border-radius: 9999px;
+  font-size: 13px;
+  font-weight: 500;
+  margin-bottom: 16px;
+}
+
+.step-badge-blue {
+  background: linear-gradient(to right, var(--color-blue-100), var(--color-purple-100));
+  color: var(--color-blue-600);
+}
+
+/* Instruction Box */
+.instruction-box {
+  background: linear-gradient(135deg, var(--color-blue-50), var(--color-purple-50));
+  border: 1px solid var(--color-blue-200);
+  border-radius: 8px;
+  padding: 16px;
+  margin-top: 16px;
+}
+
+.instruction-title {
+  color: var(--color-blue-900);
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.instruction-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.instruction-item {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+  color: #6b7280;
+}
+
+.instruction-number {
+  color: var(--color-blue-600);
+  font-weight: 600;
+  margin-top: 2px;
+}
+
+/* Sync Status Card Enhancement */
+.sync-status-card {
+  background: linear-gradient(135deg, var(--color-purple-50), var(--color-pink-50));
+  border: 1px solid var(--color-purple-200, #e9d5ff);
+}
+
+/* What happens during sync */
+.sync-process-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.sync-process-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.sync-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  margin-top: 8px;
+  flex-shrink: 0;
+}
+
+.dot-purple-pink {
+  background: linear-gradient(to right, var(--color-purple-600), var(--color-pink-600, #db2777));
+}
+
+.dot-pink-orange {
+  background: linear-gradient(to right, var(--color-pink-600, #db2777), var(--gradient-orange));
+}
+
+.dot-blue-purple {
+  background: linear-gradient(to right, var(--color-blue-600), var(--color-purple-600));
+}
+
+.dot-orange-pink {
+  background: linear-gradient(to right, var(--gradient-orange), var(--color-pink-600, #db2777));
+}
+
+/* Analytics Dashboard Enhancements */
+.analytics-card {
+  margin-bottom: 48px;
+}
+
+.dashboard-header {
+  margin-bottom: 24px;
+}
+
+.metrics-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 32px;
+  margin-bottom: 32px;
+}
+
+.metric-card {
+  flex: 1;
+  min-width: 150px;
+}
+
+.chart-container {
+  background: linear-gradient(135deg, var(--color-purple-50), var(--color-pink-50), var(--color-blue-50));
+  border: 1px solid var(--color-gray-200);
+  border-radius: 8px;
+  padding: 24px;
+  margin-bottom: 24px;
+  position: relative;
+  overflow: hidden;
+}
+
+.chart-description {
+  background: var(--color-gray-50);
+  border: 1px solid var(--color-gray-200);
+  padding: 16px;
+  border-radius: 8px;
+  color: #6b7280;
+  font-size: 14px;
+}
+
+/* Responsive adjustments */
+@media (max-width: 1024px) {
+  .hero-heading {
+    font-size: 2.5rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .hero-section {
+    padding: 48px 24px;
+  }
+
+  .hero-heading {
+    font-size: 1.75rem;
+    white-space: normal;
+  }
+
+  .hero-description {
+    font-size: 1rem;
+  }
+
+  .hero-stats {
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+
+  .hero-stat-divider {
+    border-left: none;
+    border-right: none;
+    border-top: 1px solid rgba(255, 255, 255, 0.3);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.3);
+    padding: 16px 0;
+  }
+
+  .hero-logo {
+    width: 200px;
+  }
+}
+
+/* Polaris component overrides for better integration */
+.Polaris-Card {
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1);
+}
+
+.feature-card .Polaris-Card {
+  border: 2px solid #e5e7eb;
+  transition: all 0.3s ease;
+}
+
+.feature-card:hover .Polaris-Card {
+  border-color: var(--color-purple-200);
+}

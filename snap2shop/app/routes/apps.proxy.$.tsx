@@ -6,12 +6,13 @@ import clipInference from "../services/clipInference.server";
 import vectorDb from "../services/vectorDb.server";
 import analyticsAggregation from "../services/analyticsAggregation.server";
 import { getVisualSearchSettings } from "../services/visualSearchSettings.server";
+import logger from "../utils/logger.js";
 
 export const action = async ({ request, params }) => {
-  console.log('🔍 App proxy request received');
-  console.log('Method:', request.method);
-  console.log('URL:', request.url);
-  console.log('Params:', params);
+  logger.debug('App proxy request received');
+  logger.debug('Method:', request.method);
+  logger.debug('URL:', request.url);
+  logger.debug('Params:', params);
   
   const url = new URL(request.url);
   const pathname = url.pathname;
@@ -82,7 +83,7 @@ async function handleAnalyticsTracking(request) {
 
     return json({ success: true, searchId }, { headers });
   } catch (error) {
-    console.error('Analytics tracking error:', error);
+    logger.error('Analytics tracking error:', error);
     return json({ error: "Failed to track event" }, { status: 500, headers });
   }
 }
@@ -131,7 +132,7 @@ async function handleSearchTracking(request) {
 
     return json({ success: true, searchId }, { headers });
   } catch (error) {
-    console.error('Search tracking error:', error);
+    logger.error('Search tracking error:', error);
     return json({ error: "Failed to track search" }, { status: 500, headers });
   }
 }
@@ -173,16 +174,16 @@ async function handleClickTracking(request) {
 
     return json({ success: true }, { headers });
   } catch (error) {
-    console.error('Click tracking error:', error);
+    logger.error('Click tracking error:', error);
     return json({ error: "Failed to track click" }, { status: 500, headers });
   }
 }
 
 // Handle image search (existing functionality)
 async function handleImageSearch(request) {
-  console.log('🔍 App proxy request received');
-  console.log('Method:', request.method);
-  console.log('URL:', request.url);
+  logger.debug('App proxy request received');
+  logger.debug('Method:', request.method);
+  logger.debug('URL:', request.url);
   
   // CORS headers for theme extension requests
   const headers = {
@@ -193,7 +194,7 @@ async function handleImageSearch(request) {
   };
 
   if (request.method === "OPTIONS") {
-    console.log('✅ Handling OPTIONS preflight request');
+    logger.debug('Handling OPTIONS preflight request');
     return new Response(null, { status: 200, headers });
   }
 
@@ -213,10 +214,10 @@ async function handleImageSearch(request) {
                  url.searchParams.get('shop') || 
                  request.headers.get('x-shopify-shop-domain');
     
-    console.log('Shop domain found:', shop);
+    logger.debug('Shop domain found:', shop);
     
     if (!shop) {
-      console.error('❌ No shop domain provided');
+      logger.error('No shop domain provided');
       return json(
         { error: "Shop domain is required" },
         { status: 400, headers }
@@ -226,11 +227,11 @@ async function handleImageSearch(request) {
     const imageFile = formData.get("image");
     const maxResults = parseInt(formData.get("maxResults")) || 12;
     
-    console.log('Image file received:', !!imageFile);
-    console.log('Max results:', maxResults);
+    logger.debug('Image file received:', !!imageFile);
+    logger.debug('Max results:', maxResults);
 
     if (!imageFile || typeof imageFile === "string") {
-      console.error('❌ No valid image file provided');
+      logger.error('No valid image file provided');
       return json(
         { error: "No image file provided" },
         { status: 400, headers }
@@ -239,20 +240,20 @@ async function handleImageSearch(request) {
 
     // Convert File to Buffer for processing
     const imageBuffer = Buffer.from(await imageFile.arrayBuffer());
-    console.log('📷 Image processed, size:', imageBuffer.length, 'bytes');
+    logger.debug('Image processed, size:', imageBuffer.length, 'bytes');
     
     // Create a temporary URL for the image (in memory)
     const tempImageUrl = `data:${imageFile.type};base64,${imageBuffer.toString('base64')}`;
 
     // Generate embedding for the uploaded image
-    console.log('🧠 Generating embedding for uploaded image...');
+    logger.debug('Generating embedding for uploaded image...');
     let queryEmbedding;
     try {
       queryEmbedding = await clipInference.generateEmbedding(tempImageUrl);
-      console.log('✅ Embedding generated successfully, dimensions:', queryEmbedding.embedding?.length);
-      console.log('✅ Query embedding model:', queryEmbedding.modelName);
+      logger.debug('Embedding generated successfully, dimensions:', queryEmbedding.embedding?.length);
+      logger.debug('Query embedding model:', queryEmbedding.modelName);
     } catch (embeddingError) {
-      console.error('❌ CLIP embedding generation failed:', embeddingError);
+      logger.error('CLIP embedding generation failed:', embeddingError);
       return json(
         { 
           error: "Failed to generate embedding for image",
@@ -264,12 +265,12 @@ async function handleImageSearch(request) {
 
     // Load visual search settings for this shop
     const settings = await getVisualSearchSettings(shop);
-    console.log('🔧 Visual search settings:', settings);
+    logger.debug('🔧 Visual search settings:', settings);
 
     // Search for similar embeddings in vector database
-    console.log('🔍 Searching for similar embeddings...');
-    console.log('Query embedding dimensions:', queryEmbedding.embedding.length);
-    console.log('Shop for search:', shop);
+    logger.debug('Searching for similar embeddings...');
+    logger.debug('Query embedding dimensions:', queryEmbedding.embedding.length);
+    logger.debug('Shop for search:', shop);
 
     const similarEmbeddings = await vectorDb.searchSimilar(
       shop,
@@ -281,20 +282,20 @@ async function handleImageSearch(request) {
       }
     );
 
-    console.log(`Found ${similarEmbeddings.length} similar embeddings`);
+    logger.debug(`Found ${similarEmbeddings.length} similar embeddings`);
     
     if (similarEmbeddings.length === 0) {
-      console.warn('⚠️ No similar embeddings found - possible causes:');
-      console.warn('1. Shop domain mismatch');
-      console.warn('2. Similarity threshold too high');
-      console.warn('3. No embeddings exist for this shop');
+      logger.warn('No similar embeddings found - possible causes:');
+      logger.warn('1. Shop domain mismatch');
+      logger.warn('2. Similarity threshold too high');
+      logger.warn('3. No embeddings exist for this shop');
       
       // Let's check what shops exist in the database
       const allShops = await db.product.findMany({
         select: { shop: true },
         distinct: ['shop']
       });
-      console.log('Available shops in database:', allShops.map(s => s.shop));
+      logger.debug('Available shops in database:', allShops.map(s => s.shop));
       
       return json(
         { results: [], debug: { searchShop: shop, availableShops: allShops.map(s => s.shop) } },
@@ -343,7 +344,7 @@ async function handleImageSearch(request) {
       }
     }
 
-    console.log(`Found ${results.length} similar products for shop: ${shop}`);
+    logger.debug(`Found ${results.length} similar products for shop: ${shop}`);
 
     // Track analytics for proxy search
     try {
@@ -372,9 +373,9 @@ async function handleImageSearch(request) {
           ipAddress: analyticsAggregation.getClientIP(request),
         }
       });
-      console.log('✅ Analytics tracked for proxy search');
+      logger.debug('Analytics tracked for proxy search');
     } catch (analyticsError) {
-      console.error('❌ Proxy analytics tracking failed:', analyticsError);
+      logger.error('Proxy analytics tracking failed:', analyticsError);
       // Don't fail the search if analytics fails
     }
 
@@ -387,8 +388,8 @@ async function handleImageSearch(request) {
     );
 
   } catch (error) {
-    console.error("❌ Visual search error:", error);
-    console.error("Error stack:", error.stack);
+    logger.error("Visual search error:", error);
+    logger.error("Error stack:", error.stack);
     
     return json(
       { 
@@ -436,7 +437,7 @@ function sanitizeAnalyticsData(data) {
 async function sendToSegment(shop, eventType, data) {
   // Placeholder for Segment integration
   // This would send data to Segment or other analytics providers
-  console.log('Would send to Segment:', { shop, eventType, data });
+  logger.debug('Would send to Segment:', { shop, eventType, data });
 }
 
 async function updatePopularContent(shop, contentType, contentId, contentName) {
@@ -463,6 +464,6 @@ async function updatePopularContent(shop, contentType, contentId, contentName) {
       }
     });
   } catch (error) {
-    console.error('Error updating popular content:', error);
+    logger.error('Error updating popular content:', error);
   }
 }

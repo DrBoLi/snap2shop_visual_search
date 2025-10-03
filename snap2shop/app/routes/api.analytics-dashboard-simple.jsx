@@ -4,6 +4,7 @@ import {
   resolveDashboardShop,
   getDashboardMetrics,
 } from "../services/dashboardAnalytics.server.js";
+import logger from "../utils/logger.js";
 
 export const loader = async ({ request }) => {
   const { session } = await authenticate.admin(request);
@@ -15,7 +16,7 @@ export const loader = async ({ request }) => {
 
     const { shop, availableShops } = await resolveDashboardShop(preferredShop);
     if (shop !== preferredShop) {
-      console.log(`⚠️ API using fallback shop: ${shop} (authenticated: ${preferredShop})`);
+      logger.warn(`API using fallback shop: ${shop} (authenticated: ${preferredShop})`);
     }
 
     const metrics = await getDashboardMetrics(shop, timeframe);
@@ -30,7 +31,7 @@ export const loader = async ({ request }) => {
       availableShops,
     });
   } catch (error) {
-    console.error("Error fetching simplified analytics:", error);
+    logger.error("Error fetching simplified analytics:", error);
     return json(
       {
         imageSearchVolume: 0,

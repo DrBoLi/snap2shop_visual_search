@@ -5,6 +5,7 @@ import vectorDb from "../services/vectorDb.server";
 import imageProcessing from "../services/imageProcessing.server";
 import db from "../db.server.js";
 import { getVisualSearchSettings } from "../services/visualSearchSettings.server.js";
+import logger from "../utils/logger.js";
 
 export const action = async ({ request }) => {
   if (request.method !== "POST") {
@@ -58,7 +59,7 @@ export const action = async ({ request }) => {
         const imageBuffer = await imageProcessing.downloadImage(imageUrl);
         imageMetadata = await imageProcessing.getImageMetadata(imageBuffer);
       } catch (error) {
-        console.warn('Could not get image metadata:', error.message);
+      logger.warn('Could not get image metadata:', error.message);
       }
 
     } else {
@@ -71,7 +72,7 @@ export const action = async ({ request }) => {
     const settings = await getVisualSearchSettings(shop);
     const threshold = settings.similarityThreshold;
     
-    console.log(`🔍 Using similarity threshold from settings: ${threshold}`);
+    logger.debug('Using similarity threshold from settings:', threshold);
 
     // Search for similar images using settings threshold
     const similarImages = await vectorDb.searchSimilar(
@@ -139,9 +140,9 @@ export const action = async ({ request }) => {
         }
       });
       
-      console.log(`✅ Analytics tracked: Search event created for shop ${shop} with threshold ${threshold}`);
+      logger.debug('Analytics search event stored for shop', shop, 'threshold', threshold);
     } catch (analyticsError) {
-      console.error('❌ Analytics tracking failed:', analyticsError);
+      logger.error('Analytics tracking failed:', analyticsError);
       // Don't fail the search if analytics fails
     }
 
@@ -163,7 +164,7 @@ export const action = async ({ request }) => {
     });
 
   } catch (error) {
-    console.error("Error in image search:", error);
+    logger.error("Error in image search:", error);
     
     let errorMessage = "An error occurred during image search";
     let statusCode = 500;

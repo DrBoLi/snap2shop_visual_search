@@ -1,8 +1,9 @@
 import sharp from 'sharp';
 import axios from 'axios';
-import { createReadStream, writeFileSync, unlinkSync } from 'fs';
+import { writeFileSync, unlinkSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
+import logger from '../utils/logger.js';
 
 class ImageProcessingService {
   constructor() {
@@ -33,7 +34,7 @@ class ImageProcessingService {
         isValid: true,
       };
     } catch (error) {
-      console.error('Image validation failed:', error.message);
+      logger.error('Image validation failed:', error.message);
       return {
         isValid: false,
         error: error.message,
@@ -43,7 +44,7 @@ class ImageProcessingService {
 
   async downloadImage(url) {
     try {
-      console.log(`Downloading image: ${url}`);
+      logger.debug(`Downloading image: ${url}`);
       
       const validation = await this.validateImageUrl(url);
       if (!validation.isValid) {
@@ -58,7 +59,7 @@ class ImageProcessingService {
 
       return Buffer.from(response.data);
     } catch (error) {
-      console.error('Error downloading image:', error.message);
+      logger.error('Error downloading image:', error.message);
       throw new Error(`Failed to download image: ${error.message}`);
     }
   }
@@ -78,7 +79,7 @@ class ImageProcessingService {
 
       return processed;
     } catch (error) {
-      console.error('Error processing image:', error.message);
+      logger.error('Error processing image:', error.message);
       throw new Error(`Failed to process image: ${error.message}`);
     }
   }
@@ -96,7 +97,7 @@ class ImageProcessingService {
         channels: metadata.channels,
       };
     } catch (error) {
-      console.error('Error getting image metadata:', error.message);
+      logger.error('Error getting image metadata:', error.message);
       throw new Error(`Failed to get image metadata: ${error.message}`);
     }
   }
@@ -113,7 +114,7 @@ class ImageProcessingService {
 
       return thumbnail;
     } catch (error) {
-      console.error('Error creating thumbnail:', error.message);
+      logger.error('Error creating thumbnail:', error.message);
       throw new Error(`Failed to create thumbnail: ${error.message}`);
     }
   }
@@ -139,7 +140,7 @@ class ImageProcessingService {
         metadata,
       };
     } catch (error) {
-      console.error('Error in processImageFromUrl:', error.message);
+      logger.error('Error in processImageFromUrl:', error.message);
       throw error;
     }
   }
@@ -155,12 +156,12 @@ class ImageProcessingService {
           try {
             unlinkSync(tempPath);
           } catch (error) {
-            console.warn('Failed to cleanup temp file:', tempPath);
+            logger.warn('Failed to cleanup temp file:', tempPath);
           }
         }
       };
     } catch (error) {
-      console.error('Error saving image to temp file:', error.message);
+      logger.error('Error saving image to temp file:', error.message);
       throw error;
     }
   }
