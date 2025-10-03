@@ -235,6 +235,13 @@
       this.initialized = true;
     }
 
+    cleanupExistingCameraIcons() {
+      document.querySelectorAll('.visual-search-camera-btn').forEach((button) => button.remove());
+      document.querySelectorAll('[data-visual-search-enabled="true"]').forEach((input) => {
+        input.removeAttribute('data-visual-search-enabled');
+      });
+    }
+
     findSearchInputs() {
       // Clear existing inputs
       this.searchInputs = [];
@@ -269,8 +276,11 @@
         name: input.name,
         id: input.id,
         className: input.className,
+        type: input.type,
         width: input.offsetWidth,
-        top: input.getBoundingClientRect().top
+        top: input.getBoundingClientRect().top,
+        looksLikeSearch: this.looksLikeSearchInput(input),
+        isValidSearch: this.isValidSearchInput(input)
       })));
     }
 
@@ -280,6 +290,10 @@
       const name = (input.name || '').toLowerCase();
       const id = (input.id || '').toLowerCase();
       const className = (input.className || '').toLowerCase();
+      const type = (input.type || '').toLowerCase();
+      
+      // If it's explicitly a search input type, it's valid
+      if (type === 'search') return true;
       
       // Search-related keywords
       const searchKeywords = ['search', 'query', 'find', 'look'];
@@ -298,14 +312,14 @@
       const isMainSearchInput = input.offsetWidth > 300 && input.getBoundingClientRect().top < 200;
       if (isMainSearchInput) return true;
       
-      // Check if input is in a search-related container (but exclude filter/result areas)
+      // Check if input is in a search-related container
       const container = input.closest('[class*="search"], [id*="search"], form[action*="/search"]');
       if (container) {
-        // Exclude filter areas, result areas, and other non-search containers
+        // Exclude only if it's clearly in a filter/result area
         const containerClass = container.className.toLowerCase();
         const containerId = (container.id || '').toLowerCase();
         
-        // Skip if it's a filter, result, or other non-search area
+        // Skip if it's clearly a filter, result, or other non-search area
         const excludeKeywords = ['filter', 'result', 'sort', 'availability', 'price', 'grid', 'list'];
         const shouldExclude = excludeKeywords.some(keyword => 
           containerClass.includes(keyword) || containerId.includes(keyword)
@@ -313,69 +327,64 @@
         
         if (shouldExclude) return false;
         
-        // Only include if it's actually a search input area
-        const searchAreaKeywords = ['search-bar', 'search-input', 'search-form', 'header__search', 'predictive-search'];
-        const isSearchArea = searchAreaKeywords.some(keyword => 
-          containerClass.includes(keyword) || containerId.includes(keyword)
-        );
-        
-        if (isSearchArea) return true;
-        
-        // For generic search containers, check if there's a search icon nearby
-        const nearbySearchIcon = this.findSearchIcon(input);
-        if (nearbySearchIcon) return true;
+        // Include if it's in any search-related container
+        return true;
       }
       
       return false;
     }
 
     isValidSearchInput(input) {
-      // First, check if this input is in a filter, result, or other non-search area
-      const container = input.closest('*');
-      if (container) {
-        const containerClass = container.className.toLowerCase();
-        const containerId = (container.id || '').toLowerCase();
-        
-        // Exclude specific filter areas, result areas, and other non-search containers
-        const excludeKeywords = ['filter', 'result', 'sort', 'availability', 'price', 'grid', 'list', 'facet'];
-        const shouldExclude = excludeKeywords.some(keyword => 
-          containerClass.includes(keyword) || containerId.includes(keyword)
-        );
-        
-        if (shouldExclude) return false;
-        
-        // Check if it's in a search results page filter area
-        const isInFilterArea = input.closest('.search-filters, .filters, .filter-bar, .search-results-header');
-        if (isInFilterArea) return false;
-        
-        // Check if it's near filter/sort controls (but be more specific)
-        const nearbyElements = input.parentElement?.children || [];
-        const hasFilterElements = Array.from(nearbyElements).some(el => {
-          const text = el.textContent?.toLowerCase() || '';
-          // Only exclude if the text specifically mentions filter/sort AND the input is very close
-          return (text.includes('filter:') || text.includes('sort by:') || text.includes('availability')) && 
-                 el.getBoundingClientRect().left - input.getBoundingClientRect().right < 50;
-        });
-        
-        if (hasFilterElements) return false;
-      }
-      
-      // Check input attributes to ensure it's actually for search
+      // Check input attributes first - be more permissive
       const placeholder = (input.placeholder || '').toLowerCase();
       const name = (input.name || '').toLowerCase();
       const id = (input.id || '').toLowerCase();
+      const type = (input.type || '').toLowerCase();
       
-      // Be more permissive for main search bars
+      // If it's explicitly a search input type, it's valid
+      if (type === 'search') return true;
+      
+      // Check if it's a main search input (prominent, wide, at top of page)
+      const isMainSearchInput = input.offsetWidth > 300 && input.getBoundingClientRect().top < 200;
+      if (isMainSearchInput) return true;
+      
+      // Check if it has search-related attributes
       const hasSearchAttributes = ['search', 'query', 'q'].some(keyword =>
         placeholder.includes(keyword) || name.includes(keyword) || id.includes(keyword)
       );
       
+      // Check if it's in a search form
       const isInSearchForm = input.closest('form[action*="/search"]');
       
-      // If it's a main search input (prominent, wide, at top of page), allow it
-      const isMainSearchInput = input.offsetWidth > 300 && input.getBoundingClientRect().top < 200;
+      // If it has search attributes or is in a search form, check for exclusions
+      if (hasSearchAttributes || isInSearchForm) {
+        // Only exclude if it's clearly in a filter/result area
+        const container = input.closest('*');
+        if (container) {
+          const containerClass = container.className.toLowerCase();
+          const containerId = (container.id || '').toLowerCase();
+          
+          // Only exclude if it's clearly a filter/result area
+          const excludeKeywords = ['filter', 'result', 'sort', 'availability', 'price', 'grid', 'list', 'facet'];
+          const shouldExclude = excludeKeywords.some(keyword => 
+            containerClass.includes(keyword) || containerId.includes(keyword)
+          );
+          
+          // Also check if it's very close to filter text
+          const nearbyElements = input.parentElement?.children || [];
+          const hasFilterElements = Array.from(nearbyElements).some(el => {
+            const text = el.textContent?.toLowerCase() || '';
+            return (text.includes('filter:') || text.includes('sort by:') || text.includes('availability')) && 
+                   el.getBoundingClientRect().left - input.getBoundingClientRect().right < 30;
+          });
+          
+          return !shouldExclude && !hasFilterElements;
+        }
+        
+        return true;
+      }
       
-      return hasSearchAttributes || isInSearchForm || isMainSearchInput;
+      return false;
     }
 
     isVisible(element) {
@@ -390,80 +399,56 @@
     }
 
     injectCameraIcons() {
-      // First, clean up any existing camera icons to prevent duplicates
-      this.cleanupExistingCameraIcons();
-      
-      this.searchInputs.forEach(input => {
-        // Check if camera icon already exists
-        if (input.dataset.visualSearchEnabled) return;
+      let cameraAttached = false;
 
-        const canonicalId = input.dataset.visualSearchInputId || input.getAttribute('id') || input.getAttribute('name');
-        if (canonicalId && this.processedSearchInputIds && this.processedSearchInputIds.has(canonicalId)) {
+      this.searchInputs.forEach((input) => {
+        if (input.dataset.visualSearchEnabled) {
+          if (this.hasExistingCameraButton(input)) {
+            cameraAttached = true;
+          }
           return;
         }
 
-        // Check if a camera button already exists in this input's container
-        if (this.hasExistingCameraButton(input)) {
+        const isPrimaryInput = this.isVisible(input) && input.offsetWidth > 200;
+        const containerHasButton = this.hasExistingCameraButton(input);
+
+        if (containerHasButton) {
+          input.dataset.visualSearchEnabled = 'true';
+          cameraAttached = true;
           return;
         }
 
-        // Create camera icon button
+        if (cameraAttached || !isPrimaryInput) {
+          input.dataset.visualSearchEnabled = 'true';
+          return;
+        }
+
         const cameraButton = this.createCameraButton();
-
-        // Find the search container and insertion point
         const insertionPoint = this.findOptimalInsertionPoint(input);
-        
+
         if (insertionPoint.method === 'inside-container') {
-          // Insert inside the search container, positioned absolutely
           insertionPoint.container.appendChild(cameraButton);
           this.positionCameraIconInside(cameraButton, insertionPoint.container);
+        } else if (insertionPoint.method === 'before-reset') {
+          insertionPoint.referenceElement.parentNode.insertBefore(cameraButton, insertionPoint.referenceElement);
+          this.positionCameraIconBeforeReset(cameraButton, insertionPoint.referenceElement);
         } else if (insertionPoint.method === 'next-to-search-icon') {
-          // Insert next to existing search icon
           insertionPoint.referenceElement.parentNode.insertBefore(cameraButton, insertionPoint.referenceElement.nextSibling);
           this.positionCameraIconNextToSearch(cameraButton);
         } else if (insertionPoint.method === 'in-form') {
-          // Insert in form but position relative to input
           insertionPoint.container.appendChild(cameraButton);
           this.positionCameraIconInForm(cameraButton, input);
         } else {
-          // Fallback: create wrapper
           this.createInputWrapper(input, cameraButton);
         }
 
-        // Mark input as processed
         input.dataset.visualSearchEnabled = 'true';
-        if (!this.processedSearchInputIds) {
-          this.processedSearchInputIds = new Set();
-        }
-        if (canonicalId) {
-          this.processedSearchInputIds.add(canonicalId);
-        }
+        cameraAttached = true;
 
         if (this.latestPreviewDataUrl) {
           this.decorateCameraButtonWithPreview(cameraButton, this.latestPreviewDataUrl);
         }
       });
-    }
-
-    cleanupExistingCameraIcons() {
-      // Remove ALL existing camera buttons first
-      const existingButtons = document.querySelectorAll('.visual-search-camera-btn');
-      existingButtons.forEach(button => {
-        button.remove();
-      });
-      
-      // Reset all processed inputs
-      const processedInputs = document.querySelectorAll('[data-visual-search-enabled="true"]');
-      processedInputs.forEach(input => {
-        input.removeAttribute('data-visual-search-enabled');
-      });
-      
-      // Reset processed search input IDs
-      if (this.processedSearchInputIds) {
-        this.processedSearchInputIds.clear();
-      }
-      
-      this.debug('[Visual Search] Cleaned up all existing camera icons and reset state');
     }
 
     hasExistingCameraButton(input) {
@@ -482,6 +467,14 @@
       const searchContainer = input.closest('.predictive-search, .search, .header__search, [class*="search-modal"], [class*="search-form"]');
       
       if (searchContainer) {
+        const resetButton = searchContainer.querySelector('button[type="reset"], .search__reset, .predictive-search__reset');
+        if (resetButton) {
+          return {
+            method: 'before-reset',
+            container: searchContainer,
+            referenceElement: resetButton,
+          };
+        }
         // Always use inside-container method for search modals
         return {
           method: 'inside-container',
@@ -576,6 +569,29 @@
         min-height: 36px;
         border-radius: 4px;
       `;
+    }
+
+    positionCameraIconBeforeReset(cameraButton, resetButton) {
+      cameraButton.setAttribute('data-position', 'before-reset');
+      cameraButton.style.cssText = `
+        background: transparent;
+        border: none;
+        cursor: pointer;
+        padding: 8px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        color: inherit;
+        opacity: 0.7;
+        transition: opacity 0.2s;
+        margin-left: 4px;
+      `;
+
+      const parent = resetButton.parentElement;
+      if (parent && getComputedStyle(parent).display === 'flex') {
+        parent.style.alignItems = parent.style.alignItems || 'center';
+        parent.style.gap = parent.style.gap || '6px';
+      }
     }
 
     positionCameraIconNextToSearch(cameraButton) {

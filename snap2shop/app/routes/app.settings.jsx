@@ -20,6 +20,7 @@ import { TitleBar, useAppBridge } from "@shopify/app-bridge-react";
 import { authenticate } from "../shopify.server";
 import { getVisualSearchSettings, upsertVisualSearchSettings } from "../services/visualSearchSettings.server.js";
 import logger from "../utils/logger.js";
+import "../styles/homepage.css";
 
 export const loader = async ({ request }) => {
   const { session } = await authenticate.admin(request);

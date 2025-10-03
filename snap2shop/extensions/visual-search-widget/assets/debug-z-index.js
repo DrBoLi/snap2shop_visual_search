@@ -115,8 +115,8 @@
       const modal = document.getElementById('visual-search-modal');
       
       if (!modal) {
-        console.error('[Z-Index Debug] Modal not found!');
-        return;
+        console.warn('[Z-Index Debug] Modal not found - it may not be created yet or debug mode is disabled');
+        return null;
       }
       
       console.group('[Z-Index Debug] Modal Analysis');
@@ -251,8 +251,15 @@
       // Analyze all z-indexes
       this.analyzeZIndexes();
       
-      // Debug modal specifically
-      this.debugModal();
+      // Debug modal specifically (may not exist yet)
+      const modalExists = this.debugModal();
+      
+      if (!modalExists) {
+        console.log('\n[Z-Index Debug] Modal not found. This is normal if:');
+        console.log('- Debug mode is disabled in theme settings');
+        console.log('- Visual search widget is not loaded yet');
+        console.log('- You can run debugZIndex.debugModal() later when modal is created');
+      }
       
       // Check click position
       document.addEventListener('click', (e) => {
@@ -265,16 +272,28 @@
       
       console.log('\nClick anywhere to see elements at that position');
       console.log('Use debugZIndex.forceModalTop() to force modal to top');
+      console.log('Use debugZIndex.debugModal() to analyze modal when it exists');
     }
   };
   
-  // Auto-run diagnostic when script loads
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => {
-      window.debugZIndex.runDiagnostic();
-    });
-  } else {
-    window.debugZIndex.runDiagnostic();
+  // Auto-run diagnostic when script loads (only if debug mode is enabled)
+  function initDebug() {
+    // Check if debug mode is enabled by looking for debug config
+    const hasDebugConfig = window.visualSearchConfig && window.visualSearchConfig.debug;
+    
+    if (hasDebugConfig) {
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', () => {
+          window.debugZIndex.runDiagnostic();
+        });
+      } else {
+        window.debugZIndex.runDiagnostic();
+      }
+    } else {
+      console.log('[Z-Index Debug] Debug mode disabled. Enable debug mode in theme settings to activate.');
+    }
   }
+  
+  initDebug();
   
 })();
